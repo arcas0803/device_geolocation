@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026
+
+### Changed
+- CI/CD: aligned the `publish.yaml` workflow with the shared team template
+  (OIDC trusted publishing via `id-token: write`, version-vs-tag verification
+  step, `flutter pub get` + `flutter test` gate before publishing).
+
 ## [1.0.0] - 2025
 
 ### Added

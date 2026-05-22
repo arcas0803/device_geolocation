@@ -3,43 +3,40 @@ name: Publish to pub.dev
 on:
   push:
     tags:
-      # Tag pattern enforced by pub.dev: v{{version}}
       - 'v[0-9]+.[0-9]+.[0-9]+*'
 
 jobs:
   publish:
-    name: Publish (OIDC trusted publishing)
     runs-on: ubuntu-latest
     permissions:
-      # Required by pub.dev OIDC trusted publishing.
-      id-token: write
-      contents: read
+      id-token: write  # Required for authentication with pub.dev
     steps:
       - uses: actions/checkout@v4
 
       - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
 
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      - name: Pub get
+      - name: Install dependencies
         run: flutter pub get
 
-      - name: Sanity-check tag matches pubspec version
+      - name: Run tests
+        run: flutter test
+
+      - name: Verify version matches tag
         run: |
-          tag="${GITHUB_REF_NAME#v}"
-          pubspec_version=$(grep -E '^version:' pubspec.yaml | awk '{print $2}')
-          echo "Tag version    : $tag"
-          echo "Pubspec version: $pubspec_version"
-          if [ "$tag" != "$pubspec_version" ]; then
-            echo "::error::Tag ($tag) does not match pubspec.yaml version ($pubspec_version)"
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          PUBSPEC_VERSION=$(grep '^version:' pubspec.yaml | cut -d' ' -f2)
+          if [ "$TAG_VERSION" != "$PUBSPEC_VERSION" ]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match pubspec version ($PUBSPEC_VERSION)"
             exit 1
           fi
+          echo "Version verified: $TAG_VERSION"
 
-      - name: Publish dry run
-        run: dart pub publish --dry-run
-
-      - name: Publish
+      - name: Publish to pub.dev
         run: dart pub publish --force
