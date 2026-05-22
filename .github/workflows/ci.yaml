@@ -11,7 +11,7 @@ jobs:
     name: Analyze, test & coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: subosito/flutter-action@v2
         with:
@@ -45,7 +45,7 @@ jobs:
     name: Example build (Android + Web + Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-java@v4
         with:
@@ -88,7 +88,7 @@ jobs:
     name: Example build (iOS + macOS)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: subosito/flutter-action@v2
         with:
@@ -114,7 +114,7 @@ jobs:
     name: Example build (Windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: subosito/flutter-action@v2
         with:
