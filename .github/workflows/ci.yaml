@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze_test:
+    name: Analyze, test & coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Run tests with coverage
+        run: flutter test --coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage/lcov.info
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  example_linux_desktop:
+    name: Example build (Android + Web + Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Linux desktop deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev libayatana-appindicator3-dev
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Pub get (plugin)
+        run: flutter pub get
+
+      - name: Pub get (example)
+        working-directory: example
+        run: flutter pub get
+
+      - name: Build example APK
+        working-directory: example
+        run: flutter build apk --debug
+
+      - name: Build example Web
+        working-directory: example
+        run: flutter build web
+
+      - name: Build example Linux
+        working-directory: example
+        run: flutter build linux --debug
+
+  example_apple:
+    name: Example build (iOS + macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Pub get (plugin)
+        run: flutter pub get
+
+      - name: Pub get (example)
+        working-directory: example
+        run: flutter pub get
+
+      - name: Build example iOS (no codesign)
+        working-directory: example
+        run: flutter build ios --debug --no-codesign
+
+      - name: Build example macOS
+        working-directory: example
+        run: flutter build macos --debug
+
+  example_windows:
+    name: Example build (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Pub get (plugin)
+        run: flutter pub get
+
+      - name: Pub get (example)
+        working-directory: example
+        run: flutter pub get
+
+      - name: Build example Windows
+        working-directory: example
+        run: flutter build windows --debug

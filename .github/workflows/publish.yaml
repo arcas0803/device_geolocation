@@ -1,0 +1,45 @@
+name: Publish to pub.dev
+
+on:
+  push:
+    tags:
+      # Tag pattern enforced by pub.dev: v{{version}}
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  publish:
+    name: Publish (OIDC trusted publishing)
+    runs-on: ubuntu-latest
+    permissions:
+      # Required by pub.dev OIDC trusted publishing.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Sanity-check tag matches pubspec version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pubspec_version=$(grep -E '^version:' pubspec.yaml | awk '{print $2}')
+          echo "Tag version    : $tag"
+          echo "Pubspec version: $pubspec_version"
+          if [ "$tag" != "$pubspec_version" ]; then
+            echo "::error::Tag ($tag) does not match pubspec.yaml version ($pubspec_version)"
+            exit 1
+          fi
+
+      - name: Publish dry run
+        run: dart pub publish --dry-run
+
+      - name: Publish
+        run: dart pub publish --force

@@ -1,0 +1,22 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 1%
+
+ignore:
+  # Requires a Linux host with the GeoClue2 D-Bus service to be exercised
+  # end-to-end; excluded from headline coverage.
+  - "lib/device_geolocation_linux.dart"
+  # Browser-only entry point; cannot run under the VM-based `flutter test`.
+  - "lib/device_geolocation_web.dart"
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
