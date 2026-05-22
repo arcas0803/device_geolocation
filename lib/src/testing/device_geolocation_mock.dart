@@ -80,6 +80,17 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
   /// [getPositionStream]. `null` if no call has been made yet.
   LocationSettings? lastLocationSettings;
 
+  /// Convenience accessor for the [ForegroundNotificationConfig] carried by
+  /// the most recent [AndroidSettings] passed to [getPositionStream]. Returns
+  /// `null` when the last call did not use an `AndroidSettings` instance or
+  /// the settings did not configure the foreground service.
+  ForegroundNotificationConfig? get lastForegroundNotificationConfig {
+    final settings = lastLocationSettings;
+    return settings is AndroidSettings
+        ? settings.foregroundNotificationConfig
+        : null;
+  }
+
   /// `purposeKey` last passed to [requestTemporaryFullAccuracy].
   String? lastPurposeKey;
 

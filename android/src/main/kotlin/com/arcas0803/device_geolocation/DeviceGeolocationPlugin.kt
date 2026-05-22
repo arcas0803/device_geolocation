@@ -3,9 +3,11 @@ package com.arcas0803.device_geolocation
 import android.Manifest
 import android.app.Activity
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
@@ -13,6 +15,7 @@ import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import androidx.core.app.ActivityCompat
@@ -56,7 +59,11 @@ class DeviceGeolocationPlugin :
 
     private var strategy: LocationStrategy? = null
 
-    private val locationStreamHandler = LocationStreamHandler { strategy }
+    private val locationStreamHandler =
+        LocationStreamHandler(
+            contextProvider = { if (::context.isInitialized) context else null },
+            strategyProvider = { strategy },
+        )
     private val serviceStreamHandler = ServiceStreamHandler()
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -541,15 +548,34 @@ internal class LocationManagerStrategy(context: Context) : LocationStrategy {
 }
 
 internal class LocationStreamHandler(
+    private val contextProvider: () -> Context?,
     private val strategyProvider: () -> LocationStrategy?,
 ) : EventChannel.StreamHandler {
     private var subscription: AutoCloseable? = null
+
+    private var foregroundService: DeviceGeolocationForegroundService? = null
+    private var serviceConnection: ServiceConnection? = null
+    private var foregroundSink: EventChannel.EventSink? = null
 
     override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
         val args = (arguments as? Map<*, *>) ?: emptyMap<Any, Any>()
         val accuracyIndex = (args["accuracy"] as? Int) ?: 4
         val interval = (args["intervalDuration"] as? Number)?.toLong() ?: 5000L
         val distance = (args["distanceFilter"] as? Number)?.toFloat() ?: 0f
+        val forceLM = (args["forceLocationManager"] as? Boolean) ?: false
+        @Suppress("UNCHECKED_CAST")
+        val fgConfig = args["foregroundNotificationConfig"] as? Map<String, Any?>
+
+        if (fgConfig != null) {
+            val ctx = contextProvider() ?: run {
+                events.error("POSITION_UNAVAILABLE", "Plugin not attached.", null)
+                return
+            }
+            startForegroundMode(
+                ctx, accuracyIndex, interval, distance, forceLM, fgConfig, events,
+            )
+            return
+        }
 
         val str = strategyProvider() ?: run {
             events.error("POSITION_UNAVAILABLE", "Location services unavailable.", null)
@@ -564,7 +590,85 @@ internal class LocationStreamHandler(
         )
     }
 
+    private fun startForegroundMode(
+        ctx: Context,
+        accuracyIndex: Int,
+        intervalMs: Long,
+        distanceMeters: Float,
+        forceLocationManager: Boolean,
+        config: Map<String, Any?>,
+        events: EventChannel.EventSink,
+    ) {
+        foregroundSink = events
+        val intent = Intent(ctx, DeviceGeolocationForegroundService::class.java)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ctx.startForegroundService(intent)
+            } else {
+                ctx.startService(intent)
+            }
+        } catch (e: Throwable) {
+            events.error(
+                "FOREGROUND_SERVICE_START_FAILED",
+                e.localizedMessage ?: e.toString(),
+                null,
+            )
+            return
+        }
+        val conn = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                val svc = (service as? DeviceGeolocationForegroundService.LocalBinder)
+                    ?.getService()
+                if (svc == null) {
+                    events.error(
+                        "FOREGROUND_SERVICE_BIND_FAILED",
+                        "Service binder returned null.",
+                        null,
+                    )
+                    return
+                }
+                foregroundService = svc
+                svc.startLocationUpdates(
+                    accuracyIndex = accuracyIndex,
+                    intervalMs = intervalMs,
+                    distanceMeters = distanceMeters,
+                    forceLocationManager = forceLocationManager,
+                    config = config,
+                    sink = events,
+                )
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                foregroundService = null
+            }
+        }
+        serviceConnection = conn
+        try {
+            ctx.bindService(intent, conn, Context.BIND_AUTO_CREATE)
+        } catch (e: Throwable) {
+            serviceConnection = null
+            events.error(
+                "FOREGROUND_SERVICE_BIND_FAILED",
+                e.localizedMessage ?: e.toString(),
+                null,
+            )
+        }
+    }
+
     override fun onCancel(arguments: Any?) {
+        val sink = foregroundSink
+        val svc = foregroundService
+        val conn = serviceConnection
+        if (svc != null && sink != null) {
+            svc.stopLocationUpdates(sink)
+        }
+        if (conn != null) {
+            try { contextProvider()?.unbindService(conn) } catch (_: Throwable) {}
+        }
+        foregroundService = null
+        serviceConnection = null
+        foregroundSink = null
+
         subscription?.close()
         subscription = null
     }

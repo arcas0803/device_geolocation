@@ -1,4 +1,5 @@
 import '../enums/location_accuracy.dart';
+import 'foreground_notification_config.dart';
 
 /// Cross-platform options used to request a location.
 class LocationSettings {
@@ -33,6 +34,7 @@ class AndroidSettings extends LocationSettings {
     super.timeLimit,
     this.forceLocationManager = false,
     this.intervalDuration,
+    this.foregroundNotificationConfig,
   });
 
   /// Force the use of the legacy `LocationManager` instead of
@@ -42,12 +44,19 @@ class AndroidSettings extends LocationSettings {
   /// Minimum desired interval between updates.
   final Duration? intervalDuration;
 
+  /// When non-null, enables the Android foreground service for the active
+  /// location stream and uses this configuration for its persistent
+  /// notification. Required for reliable background tracking on Android 10+.
+  final ForegroundNotificationConfig? foregroundNotificationConfig;
+
   @override
   Map<String, dynamic> toJson() => {
     ...super.toJson(),
     'forceLocationManager': forceLocationManager,
     if (intervalDuration != null)
       'intervalDuration': intervalDuration!.inMilliseconds,
+    if (foregroundNotificationConfig != null)
+      'foregroundNotificationConfig': foregroundNotificationConfig!.toJson(),
   };
 }
 

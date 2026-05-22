@@ -116,4 +116,34 @@ void main() {
     expect(mock.permission, LocationPermission.whileInUse);
     expect(mock.serviceEnabled, isTrue);
   });
+
+  test('lastForegroundNotificationConfig captures AndroidSettings', () async {
+    const cfg = ForegroundNotificationConfig(
+      notificationTitle: 'Tracking',
+      notificationText: 'Sharing your location',
+      enableWakeLock: true,
+    );
+    final stream = DeviceGeolocation.getPositionStream(
+      locationSettings: const AndroidSettings(
+        foregroundNotificationConfig: cfg,
+      ),
+    );
+    final sub = stream.listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+    expect(mock.lastForegroundNotificationConfig, equals(cfg));
+    await sub.cancel();
+  });
+
+  test(
+    'lastForegroundNotificationConfig is null without AndroidSettings',
+    () async {
+      final stream = DeviceGeolocation.getPositionStream(
+        locationSettings: const LocationSettings(),
+      );
+      final sub = stream.listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+      expect(mock.lastForegroundNotificationConfig, isNull);
+      await sub.cancel();
+    },
+  );
 }

@@ -4,6 +4,28 @@ All notable changes to this project are documented in this file. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026
+
+### Added
+- Android: `ForegroundNotificationConfig` (with `AndroidResource`) and the
+  new `AndroidSettings.foregroundNotificationConfig` field. When supplied to
+  `DeviceGeolocation.getPositionStream`, the plugin runs a
+  `FOREGROUND_SERVICE_TYPE_LOCATION` service so location updates keep
+  flowing while the app is backgrounded.
+- Android: bundled `DeviceGeolocationForegroundService` (declared in the
+  plugin's `AndroidManifest.xml`) with optional `WAKE_LOCK` /
+  high-performance `WifiLock` retention, customizable notification (title,
+  text, channel name, icon, color, ongoing flag), multi-engine support
+  (service is shared across Flutter engines and stops only when the last
+  subscription ends), and runtime detection of the host app's
+  `FOREGROUND_SERVICE_LOCATION` permission on Android 14+.
+- The foreground service reuses the existing GMS/non-GMS detection
+  (`FusedLocationProviderClient` when Google Play services are available,
+  fallback to `LocationManager` otherwise) and honours
+  `AndroidSettings.forceLocationManager`.
+- Testing: `DeviceGeolocationMock.lastForegroundNotificationConfig` getter
+  to assert the configuration carried by the last stream subscription.
+
 ## [1.0.2] - 2026
 
 ### Fixed

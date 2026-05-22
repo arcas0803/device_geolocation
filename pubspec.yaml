@@ -1,6 +1,6 @@
 name: device_geolocation
 description: "Cross-platform Flutter geolocation plugin (Android, iOS, macOS, Web, Windows, Linux)."
-version: 1.0.2
+version: 1.1.0
 homepage: https://github.com/arcas0803/device_geolocation
 repository: https://github.com/arcas0803/device_geolocation
 issue_tracker: https://github.com/arcas0803/device_geolocation/issues

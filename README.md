@@ -64,6 +64,7 @@ capabilities are actually wired on each platform.
 | `getLastKnownPosition`                 | ✅ | ✅ | ✅ | —⁴ | ✅ | ✅ |
 | `getCurrentPosition`                   | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `getPositionStream`                    | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Background foreground service          | ✅ | —⁹ | — | — | — | — |
 | `getServiceStatusStream`               | ✅ | ✅ | ✅ | —⁵ | ✅ | ✅ |
 | `getLocationAccuracy`                  | ✅ | ✅ | ✅ | ✅⁶ | ✅⁶ | ✅⁶ |
 | `requestTemporaryFullAccuracy`         | —⁷ | ✅ | ✅ | —⁷ | —⁷ | —⁷ |
@@ -84,13 +85,16 @@ the platform does not differentiate reduced vs. precise modes.<br>
 ⁷ Temporary full-accuracy is an iOS/macOS-only concept; the call is a no-op
 that returns the current accuracy on other platforms.<br>
 ⁸ Browsers do not allow programmatic navigation to permission settings;
-the call returns `false`.</sup>
+the call returns `false`.<br>
+⁹ iOS keeps location running in the background via the platform's own
+`UIBackgroundModes` + `allowBackgroundLocationUpdates` flag — see the
+iOS permissions section above.</sup>
 
 ## Install
 
 ```yaml
 dependencies:
-  device_geolocation: ^1.0.2
+  device_geolocation: ^1.1.0
 ```
 
 ## Permissions setup
@@ -209,6 +213,73 @@ final permission = await DeviceGeolocation.requestPermission(
 The plugin first requests the foreground permission and — on Android 10+
 (API 29) — chains the background permission request only when foreground access
 has been granted, matching Google's [recommended flow](https://developer.android.com/develop/sensors-and-location/location/permissions).
+
+### Background location on Android (foreground service)
+
+From 1.1.0 the plugin can promote an active location stream to an Android
+`FOREGROUND_SERVICE_TYPE_LOCATION` service so updates keep flowing while
+your app is in the background, the screen is off or the user switches to
+another task. Pass a `ForegroundNotificationConfig` inside
+`AndroidSettings.foregroundNotificationConfig`:
+
+```dart
+final subscription = DeviceGeolocation.getPositionStream(
+  locationSettings: const AndroidSettings(
+    accuracy: LocationAccuracy.high,
+    distanceFilter: 10,
+    intervalDuration: Duration(seconds: 5),
+    foregroundNotificationConfig: ForegroundNotificationConfig(
+      notificationTitle: 'Tracking your run',
+      notificationText: 'We will keep recording while the screen is off.',
+      notificationChannelName: 'Activity tracking',
+      notificationIcon: AndroidResource(
+        name: 'ic_stat_notify',
+        defType: 'drawable',
+      ),
+      enableWakeLock: true,
+      enableWifiLock: false,
+      setOngoing: true,
+      color: 0xFF2196F3,
+    ),
+  ),
+).listen((position) => print(position));
+```
+
+The plugin starts a bound service that holds the location subscription,
+shows the (mandatory) notification described by the config and stops as
+soon as every Flutter engine has cancelled its stream. Multiple
+subscriptions across multiple Flutter engines are supported: the service
+fans every fix out to all active sinks and only tears itself down when
+the last one cancels.
+
+The service automatically picks the best available location source on
+each device — `FusedLocationProviderClient` from Google Play services
+when they are installed, and the system `LocationManager` (GPS / network
+providers) on devices without Play services or when you pass
+`forceLocationManager: true`. Background tracking therefore works on
+GMS and non-GMS devices alike.
+
+#### Required setup in the host app
+
+The service itself is declared in the plugin's `AndroidManifest.xml`,
+but Google Play and Android still require the *consumer* app to declare
+the matching permissions. Add these to your
+`android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+<!-- Optional, only required when you enable enableWakeLock. -->
+<uses-permission android:name="android.permission.WAKE_LOCK" />
+```
+
+On Android 14 (API 34) and above the runtime enforces
+`FOREGROUND_SERVICE_LOCATION`. If the host manifest does not declare it,
+the stream emits a `PositionUpdateException` with the code
+`MISSING_FOREGROUND_SERVICE_LOCATION_PERMISSION`. Make sure your
+Google Play listing also justifies background location usage, as the
+store policy requires for any app shipping this permission.
 
 ## API reference
 

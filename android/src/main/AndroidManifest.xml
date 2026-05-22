@@ -5,6 +5,7 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission
       android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
 
   <queries>
     <intent>
@@ -14,4 +15,12 @@
       <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />
     </intent>
   </queries>
+
+  <application>
+    <service
+        android:name=".DeviceGeolocationForegroundService"
+        android:foregroundServiceType="location"
+        android:exported="false"
+        android:enabled="true" />
+  </application>
 </manifest>
