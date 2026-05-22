@@ -90,7 +90,7 @@ the call returns `false`.</sup>
 
 ```yaml
 dependencies:
-  device_geolocation: ^1.0.0
+  device_geolocation: ^1.0.2
 ```
 
 ## Permissions setup

@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026
+
+### Fixed
+- Windows: apply `cxx_std_20`, `/await` and the `WindowsApp` link to the
+  `${TEST_RUNNER}` target in `windows/CMakeLists.txt`. The unit-test
+  executable recompiles the plugin sources (which use `co_await` /
+  WinRT C++/coroutines) and was inheriting C++17 from Flutter's default
+  settings, breaking the example's Windows build on CI.
+
 ## [1.0.1] - 2026
 
 ### Changed
