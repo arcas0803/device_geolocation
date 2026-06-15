@@ -99,7 +99,7 @@ iOS permissions section above.</sup>
 
 ```yaml
 dependencies:
-  device_geolocation: ^2.1.2
+  device_geolocation: ^2.1.3
 ```
 
 ## Permissions setup

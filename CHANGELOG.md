@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - 2026
+
+### Fixed
+- Windows build: removed deprecated `/await` compiler flag from the plugin and
+  test runner targets. Modern MSVC versions (14.43+) no longer support the
+  experimental C++17 coroutine headers and require C++20 `<coroutine>` instead,
+  which the project already enables via `cxx_std_20`.
+
 ## [2.1.2] - 2026
 
 ### Fixed
