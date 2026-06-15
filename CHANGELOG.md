@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026
+
+### Fixed
+- Windows build: corrected GoogleTest download URL to use the `v1.14.0` tag
+  (`refs/tags/v1.14.0.zip`), fixing the 404 from `release-1.14.0`.
+- Downgraded `dbus` from `^0.7.13` to `0.7.12` for broader SDK compatibility.
+
 ## [2.1.1] - 2026
 
 ### Fixed
