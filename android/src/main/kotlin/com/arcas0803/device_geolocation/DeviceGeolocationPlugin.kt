@@ -121,11 +121,10 @@ class DeviceGeolocationPlugin :
                 requestPermission(result, requestBackground)
             }
             "isLocationServiceEnabled" -> result.success(isLocationServiceEnabled())
-            "getLastKnownPosition" -> {
-                val forceLM = call.argument<Boolean>("forceLocationManager") ?: false
-                getLastKnownPosition(result, forceLM)
+            "getCurrentPosition" -> {
+                if (!ensurePermissionsDeclaredOrFail(result)) return
+                getCurrentPosition(call, result)
             }
-            "getCurrentPosition" -> getCurrentPosition(call, result)
             "openAppSettings" -> result.success(openAppSettings())
             "openLocationSettings" -> result.success(openLocationSettings())
             "getLocationAccuracy" -> result.success(getLocationAccuracyIndex())
@@ -136,6 +135,38 @@ class DeviceGeolocationPlugin :
 
     private fun hasPermission(name: String): Boolean =
         ContextCompat.checkSelfPermission(context, name) == PackageManager.PERMISSION_GRANTED
+
+    private fun ensurePermissionsDeclaredOrFail(result: Result): Boolean {
+        val permissions = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(
+                    context.packageName,
+                    PackageManager.GET_PERMISSIONS,
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(
+                    context.packageName,
+                    PackageManager.GET_PERMISSIONS,
+                )
+            }.requestedPermissions ?: emptyArray()
+        } catch (_: Throwable) {
+            emptyArray<String>()
+        }
+        val fineDeclared = permissions.contains(Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarseDeclared = permissions.contains(Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (!fineDeclared && !coarseDeclared) {
+            result.error(
+                "PERMISSION_DEFINITIONS_NOT_FOUND",
+                "The AndroidManifest.xml is missing the required location permissions. " +
+                    "Add <uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" /> " +
+                    "or <uses-permission android:name=\"android.permission.ACCESS_COARSE_LOCATION\" />.",
+                null,
+            )
+            return false
+        }
+        return true
+    }
 
     private fun currentPermissionIndex(): Int {
         val fine = hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -151,6 +182,7 @@ class DeviceGeolocationPlugin :
     }
 
     private fun requestPermission(result: Result, requestBackground: Boolean) {
+        if (!ensurePermissionsDeclaredOrFail(result)) return
         val current = currentPermissionIndex()
         val alreadySufficient =
             (current == LocationPermissionIndex.ALWAYS) ||
@@ -257,22 +289,6 @@ class DeviceGeolocationPlugin :
             return false
         }
         return true
-    }
-
-    private fun getLastKnownPosition(result: Result, forceLocationManager: Boolean) {
-        if (!ensurePermissionsOrFail(result)) return
-        val str = strategyFor(forceLocationManager) ?: run {
-            result.error("POSITION_UNAVAILABLE", "Location services unavailable.", null)
-            return
-        }
-        try {
-            str.getLastKnownPosition(
-                onResult = { loc -> result.success(loc?.let(::locationToMap)) },
-                onError = { msg -> result.error("POSITION_UNAVAILABLE", msg, null) },
-            )
-        } catch (e: SecurityException) {
-            result.error("PERMISSION_DENIED", e.localizedMessage, null)
-        }
     }
 
     private fun getCurrentPosition(call: MethodCall, result: Result) {
@@ -386,11 +402,6 @@ internal fun createStrategy(context: Context): LocationStrategy {
 }
 
 internal interface LocationStrategy {
-    fun getLastKnownPosition(
-        onResult: (Location?) -> Unit,
-        onError: (String?) -> Unit,
-    )
-
     fun getCurrentPosition(
         accuracyIndex: Int,
         onResult: (Location?) -> Unit,
@@ -409,15 +420,6 @@ internal interface LocationStrategy {
 internal class FusedLocationStrategy(context: Context) : LocationStrategy {
     private val client: FusedLocationProviderClient =
         LocationServices.getFusedLocationProviderClient(context)
-
-    override fun getLastKnownPosition(
-        onResult: (Location?) -> Unit,
-        onError: (String?) -> Unit,
-    ) {
-        client.lastLocation
-            .addOnSuccessListener { onResult(it) }
-            .addOnFailureListener { onError(it.localizedMessage) }
-    }
 
     override fun getCurrentPosition(
         accuracyIndex: Int,
@@ -469,19 +471,6 @@ internal class LocationManagerStrategy(context: Context) : LocationStrategy {
                 LocationManager.GPS_PROVIDER
             else -> LocationManager.PASSIVE_PROVIDER
         }
-    }
-
-    override fun getLastKnownPosition(
-        onResult: (Location?) -> Unit,
-        onError: (String?) -> Unit,
-    ) {
-        val providers = lm.getProviders(true)
-        var best: Location? = null
-        for (p in providers) {
-            val l = try { lm.getLastKnownLocation(p) } catch (_: SecurityException) { null }
-            if (l != null && (best == null || l.accuracy < best.accuracy)) best = l
-        }
-        onResult(best)
     }
 
     override fun getCurrentPosition(

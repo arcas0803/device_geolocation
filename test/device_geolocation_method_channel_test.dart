@@ -8,6 +8,7 @@ void main() {
 
   final platform = MethodChannelDeviceGeolocation();
   const channel = MethodChannel('device_geolocation');
+  const permissionChannel = EventChannel('device_geolocation/permissionUpdates');
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
@@ -40,13 +41,13 @@ void main() {
   });
 
   test('checkPermission decodes int to enum', () async {
-    install((_) async => LocationPermission.always.index);
-    expect(await platform.checkPermission(), LocationPermission.always);
+    install((_) async => DeviceLocationPermission.always.index);
+    expect(await platform.checkPermission(), DeviceLocationPermission.always);
     expect(calls.single.method, 'checkPermission');
   });
 
   test('requestPermission forwards requestBackground arg', () async {
-    install((_) async => LocationPermission.whileInUse.index);
+    install((_) async => DeviceLocationPermission.whileInUse.index);
     await platform.requestPermission(requestBackground: true);
     expect(calls.single.method, 'requestPermission');
     expect(calls.single.arguments, {'requestBackground': true});
@@ -57,35 +58,28 @@ void main() {
     expect(await platform.isLocationServiceEnabled(), isTrue);
   });
 
-  test('getLastKnownPosition forwards forceLocationManager', () async {
-    install((_) async => samplePositionMap());
-    final p = await platform.getLastKnownPosition(forceLocationManager: true);
-    expect(p?.latitude, 1.0);
-    expect(calls.single.arguments, {'forceLocationManager': true});
-  });
-
-  test(
-    'getLastKnownPosition returns null when platform returns null',
-    () async {
-      install((_) async => null);
-      expect(await platform.getLastKnownPosition(), isNull);
-    },
-  );
-
-  test('getCurrentPosition forwards locationSettings', () async {
+  test('getCurrentPosition forwards deviceLocationSettings', () async {
     install((_) async => samplePositionMap());
     final p = await platform.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
+      deviceLocationSettings: const DeviceLocationSettings(
+        accuracy: DeviceLocationAccuracy.high,
         distanceFilter: 5,
         timeLimit: Duration(seconds: 7),
       ),
     );
     expect(p.latitude, 1.0);
     final args = calls.single.arguments as Map;
-    expect(args['accuracy'], LocationAccuracy.high.index);
+    expect(args['accuracy'], DeviceLocationAccuracy.high.index);
     expect(args['distanceFilter'], 5);
     expect(args['timeLimit'], 7000);
+  });
+
+  test('getCurrentPosition uses default settings when null', () async {
+    install((_) async => samplePositionMap());
+    await platform.getCurrentPosition();
+    final args = calls.single.arguments as Map;
+    expect(args['accuracy'], DeviceLocationAccuracy.best.index);
+    expect(args['distanceFilter'], 0);
   });
 
   test('getCurrentPosition throws when platform returns null', () async {
@@ -97,19 +91,19 @@ void main() {
   });
 
   test('getLocationAccuracy decodes enum', () async {
-    install((_) async => LocationAccuracyStatus.reduced.index);
+    install((_) async => DeviceLocationAccuracyStatus.reduced.index);
     expect(
       await platform.getLocationAccuracy(),
-      LocationAccuracyStatus.reduced,
+      DeviceLocationAccuracyStatus.reduced,
     );
   });
 
   test('requestTemporaryFullAccuracy forwards purposeKey', () async {
-    install((_) async => LocationAccuracyStatus.precise.index);
+    install((_) async => DeviceLocationAccuracyStatus.precise.index);
     final r = await platform.requestTemporaryFullAccuracy(
       purposeKey: 'PreciseLocation',
     );
-    expect(r, LocationAccuracyStatus.precise);
+    expect(r, DeviceLocationAccuracyStatus.precise);
     expect(calls.single.arguments, {'purposeKey': 'PreciseLocation'});
   });
 
@@ -121,6 +115,59 @@ void main() {
       calls.map((c) => c.method),
       containsAll(['openAppSettings', 'openLocationSettings']),
     );
+  });
+
+  group('getPermissionStream', () {
+    tearDown(() {
+      messenger.setMockMessageHandler(permissionChannel.name, null);
+    });
+
+    test('emits current permission immediately via polling', () async {
+      install((_) async => DeviceLocationPermission.whileInUse.index);
+      final values = <DeviceLocationPermission>[];
+      final sub = platform
+          .getPermissionStream(pollingInterval: const Duration(milliseconds: 50))
+          .listen(values.add);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(values, isNotEmpty);
+      expect(values.first, DeviceLocationPermission.whileInUse);
+      await sub.cancel();
+    });
+
+    test('emits permission updates from native event channel', () async {
+      install((_) async => DeviceLocationPermission.denied.index);
+
+      messenger.setMockMessageHandler(
+        permissionChannel.name,
+        (message) async {
+          final codec = permissionChannel.codec;
+          final call = codec.decodeMethodCall(message);
+          if (call.method == 'listen') {
+            final envelope = codec.encodeSuccessEnvelope(
+              DeviceLocationPermission.always.index,
+            );
+            // ignore: discarded_futures
+            Future<void>.delayed(Duration.zero, () {
+              // ignore: deprecated_member_use
+              permissionChannel.binaryMessenger.handlePlatformMessage(
+                permissionChannel.name,
+                envelope,
+                (_) {},
+              );
+            });
+          }
+          return codec.encodeSuccessEnvelope(null);
+        },
+      );
+
+      final values = <DeviceLocationPermission>[];
+      final sub = platform
+          .getPermissionStream(pollingInterval: const Duration(days: 1))
+          .listen(values.add);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(values, contains(DeviceLocationPermission.always));
+      await sub.cancel();
+    });
   });
 
   group('PlatformException mapping', () {

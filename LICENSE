@@ -25,3 +25,10 @@ THE SOFTWARE.
 Portions of the API surface, behaviour and naming of this package are
 inspired by `flutter-geolocator` by Baseflow,
 https://github.com/Baseflow/flutter-geolocator (MIT License).
+
+---
+
+Portions of the geospatial calculation code in this package are adapted from
+`latlong2` by ThexXTURBOXx and contributors,
+https://github.com/ThexXTURBOXx/dart-latlong, licensed under the
+Apache License, Version 2.0.

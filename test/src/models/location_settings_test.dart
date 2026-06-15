@@ -2,20 +2,20 @@ import 'package:device_geolocation/device_geolocation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('LocationSettings', () {
+  group('DeviceLocationSettings', () {
     test('defaults', () {
-      const s = LocationSettings();
-      expect(s.accuracy, LocationAccuracy.best);
+      const s = DeviceLocationSettings();
+      expect(s.accuracy, DeviceLocationAccuracy.best);
       expect(s.distanceFilter, 0);
       expect(s.timeLimit, isNull);
       expect(s.toJson(), {
-        'accuracy': LocationAccuracy.best.index,
+        'accuracy': DeviceLocationAccuracy.best.index,
         'distanceFilter': 0,
       });
     });
 
     test('serializes timeLimit when set', () {
-      const s = LocationSettings(timeLimit: Duration(seconds: 5));
+      const s = DeviceLocationSettings(timeLimit: Duration(seconds: 5));
       expect(s.toJson()['timeLimit'], 5000);
     });
   });
@@ -23,13 +23,13 @@ void main() {
   group('AndroidSettings', () {
     test('toJson includes Android keys', () {
       const s = AndroidSettings(
-        accuracy: LocationAccuracy.high,
+        accuracy: DeviceLocationAccuracy.high,
         distanceFilter: 10,
         forceLocationManager: true,
         intervalDuration: Duration(seconds: 2),
       );
       final json = s.toJson();
-      expect(json['accuracy'], LocationAccuracy.high.index);
+      expect(json['accuracy'], DeviceLocationAccuracy.high.index);
       expect(json['distanceFilter'], 10);
       expect(json['forceLocationManager'], true);
       expect(json['intervalDuration'], 2000);

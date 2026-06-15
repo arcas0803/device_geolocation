@@ -2,8 +2,8 @@ import 'package:meta/meta.dart';
 
 /// Contains detailed location data returned by the platform.
 @immutable
-class Position {
-  const Position({
+class DevicePosition {
+  const DevicePosition({
     required this.latitude,
     required this.longitude,
     required this.timestamp,
@@ -57,8 +57,8 @@ class Position {
   static double _toDouble(dynamic value) =>
       value == null ? 0.0 : (value as num).toDouble();
 
-  /// Builds a [Position] from a map produced by a platform implementation.
-  static Position fromMap(dynamic message) {
+  /// Builds a [DevicePosition] from a map produced by a platform implementation.
+  static DevicePosition fromMap(dynamic message) {
     final map = Map<dynamic, dynamic>.from(message as Map);
 
     if (!map.containsKey('latitude')) {
@@ -81,7 +81,7 @@ class Position {
         ? DateTime.now()
         : DateTime.fromMillisecondsSinceEpoch((ts as num).toInt(), isUtc: true);
 
-    return Position(
+    return DevicePosition(
       latitude: (map['latitude'] as num).toDouble(),
       longitude: (map['longitude'] as num).toDouble(),
       timestamp: timestamp,
@@ -116,7 +116,7 @@ class Position {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is Position &&
+      (other is DevicePosition &&
           other.latitude == latitude &&
           other.longitude == longitude &&
           other.timestamp == timestamp &&
@@ -147,5 +147,6 @@ class Position {
   );
 
   @override
-  String toString() => 'Position(latitude: $latitude, longitude: $longitude)';
+  String toString() =>
+      'DevicePosition(latitude: $latitude, longitude: $longitude)';
 }

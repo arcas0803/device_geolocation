@@ -5,6 +5,7 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import '../../device_geolocation_platform_interface.dart';
 import '../enums/enums.dart';
 import '../models/models.dart';
+import '../settings_panel_lifecycle.dart';
 
 /// In-memory fake of [DeviceGeolocationPlatform] for use in tests.
 ///
@@ -46,24 +47,21 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
   }
 
   /// Current permission state returned by [checkPermission] /
-  /// [requestPermission].
-  LocationPermission permission = LocationPermission.whileInUse;
+  /// [requestPermission] and emitted by [getPermissionStream].
+  DeviceLocationPermission permission = DeviceLocationPermission.whileInUse;
 
   /// Value returned by [isLocationServiceEnabled].
   bool serviceEnabled = true;
 
   /// Value returned by [getCurrentPosition].
-  Position? position;
-
-  /// Value returned by [getLastKnownPosition].
-  Position? lastKnownPosition;
+  DevicePosition? position;
 
   /// Value returned by [getLocationAccuracy].
-  LocationAccuracyStatus accuracy = LocationAccuracyStatus.precise;
+  DeviceLocationAccuracyStatus accuracy = DeviceLocationAccuracyStatus.precise;
 
   /// Value returned by [requestTemporaryFullAccuracy].
-  LocationAccuracyStatus temporaryAccuracyResult =
-      LocationAccuracyStatus.precise;
+  DeviceLocationAccuracyStatus temporaryAccuracyResult =
+      DeviceLocationAccuracyStatus.precise;
 
   /// Value returned by [openAppSettings] and [openLocationSettings].
   bool settingsOpened = true;
@@ -72,20 +70,16 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
   /// time it was called. Useful for assertions.
   bool lastRequestedBackground = false;
 
-  /// Whether [getLastKnownPosition] received `forceLocationManager: true`
-  /// the last time it was called.
-  bool lastForcedLocationManager = false;
-
-  /// `LocationSettings` last passed to [getCurrentPosition] or
+  /// `DeviceLocationSettings` last passed to [getCurrentPosition] or
   /// [getPositionStream]. `null` if no call has been made yet.
-  LocationSettings? lastLocationSettings;
+  DeviceLocationSettings? lastDeviceLocationSettings;
 
   /// Convenience accessor for the [ForegroundNotificationConfig] carried by
   /// the most recent [AndroidSettings] passed to [getPositionStream]. Returns
   /// `null` when the last call did not use an `AndroidSettings` instance or
   /// the settings did not configure the foreground service.
   ForegroundNotificationConfig? get lastForegroundNotificationConfig {
-    final settings = lastLocationSettings;
+    final settings = lastDeviceLocationSettings;
     return settings is AndroidSettings
         ? settings.foregroundNotificationConfig
         : null;
@@ -97,11 +91,12 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
   /// Exception thrown by the next platform call, then cleared.
   Object? _pendingError;
 
-  StreamController<Position>? _positionController;
-  StreamController<ServiceStatus>? _serviceController;
+  StreamController<DevicePosition>? _positionController;
+  StreamController<DeviceLocationServiceStatus>? _serviceController;
+  StreamController<DeviceLocationPermission>? _permissionController;
 
-  /// Convenience constructor for a [Position] with sensible defaults.
-  Position makePosition({
+  /// Convenience constructor for a [DevicePosition] with sensible defaults.
+  DevicePosition makePosition({
     double latitude = 0,
     double longitude = 0,
     DateTime? timestamp,
@@ -114,7 +109,7 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
     double speedAccuracy = 0,
     int? floor,
     bool isMocked = true,
-  }) => Position(
+  }) => DevicePosition(
     latitude: latitude,
     longitude: longitude,
     timestamp: timestamp ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
@@ -129,20 +124,24 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
     isMocked: isMocked,
   );
 
-  /// Sets [position] (and [lastKnownPosition] when [alsoLastKnown] is `true`).
-  void setPosition(Position value, {bool alsoLastKnown = true}) {
+  /// Sets [position] to [value].
+  void setPosition(DevicePosition value) {
     position = value;
-    if (alsoLastKnown) lastKnownPosition = value;
   }
 
   /// Pushes [value] to active [getPositionStream] listeners.
-  void emitPosition(Position value) {
+  void emitPosition(DevicePosition value) {
     _positionController?.add(value);
   }
 
   /// Pushes [value] to active [getServiceStatusStream] listeners.
-  void emitServiceStatus(ServiceStatus value) {
+  void emitServiceStatus(DeviceLocationServiceStatus value) {
     _serviceController?.add(value);
+  }
+
+  /// Pushes [value] to active [getPermissionStream] listeners.
+  void emitPermission(DeviceLocationPermission value) {
+    _permissionController?.add(value);
   }
 
   /// Causes the next platform call to throw [error].
@@ -152,22 +151,22 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
 
   /// Resets all configured state and closes active stream controllers.
   Future<void> reset() async {
-    permission = LocationPermission.whileInUse;
+    permission = DeviceLocationPermission.whileInUse;
     serviceEnabled = true;
     position = null;
-    lastKnownPosition = null;
-    accuracy = LocationAccuracyStatus.precise;
-    temporaryAccuracyResult = LocationAccuracyStatus.precise;
+    accuracy = DeviceLocationAccuracyStatus.precise;
+    temporaryAccuracyResult = DeviceLocationAccuracyStatus.precise;
     settingsOpened = true;
     lastRequestedBackground = false;
-    lastForcedLocationManager = false;
-    lastLocationSettings = null;
+    lastDeviceLocationSettings = null;
     lastPurposeKey = null;
     _pendingError = null;
     await _positionController?.close();
     _positionController = null;
     await _serviceController?.close();
     _serviceController = null;
+    await _permissionController?.close();
+    _permissionController = null;
   }
 
   T _maybeThrow<T>(T value) {
@@ -180,10 +179,11 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
   }
 
   @override
-  Future<LocationPermission> checkPermission() async => _maybeThrow(permission);
+  Future<DeviceLocationPermission> checkPermission() async =>
+      _maybeThrow(permission);
 
   @override
-  Future<LocationPermission> requestPermission({
+  Future<DeviceLocationPermission> requestPermission({
     bool requestBackground = false,
   }) async {
     lastRequestedBackground = requestBackground;
@@ -194,18 +194,10 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
   Future<bool> isLocationServiceEnabled() async => _maybeThrow(serviceEnabled);
 
   @override
-  Future<Position?> getLastKnownPosition({
-    bool forceLocationManager = false,
+  Future<DevicePosition> getCurrentPosition({
+    DeviceLocationSettings? deviceLocationSettings,
   }) async {
-    lastForcedLocationManager = forceLocationManager;
-    return _maybeThrow(lastKnownPosition);
-  }
-
-  @override
-  Future<Position> getCurrentPosition({
-    LocationSettings? locationSettings,
-  }) async {
-    lastLocationSettings = locationSettings;
+    lastDeviceLocationSettings = deviceLocationSettings;
     final p = position;
     if (p == null && _pendingError == null) {
       throw StateError(
@@ -213,30 +205,41 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
         'Configure it before calling getCurrentPosition().',
       );
     }
-    return _maybeThrow(p as Position);
+    return _maybeThrow(p as DevicePosition);
   }
 
   @override
-  Stream<Position> getPositionStream({LocationSettings? locationSettings}) {
-    lastLocationSettings = locationSettings;
+  Stream<DevicePosition> getPositionStream({
+    DeviceLocationSettings? deviceLocationSettings,
+  }) {
+    lastDeviceLocationSettings = deviceLocationSettings;
     final controller = _positionController ??=
-        StreamController<Position>.broadcast();
+        StreamController<DevicePosition>.broadcast();
     return controller.stream;
   }
 
   @override
-  Stream<ServiceStatus> getServiceStatusStream() {
+  Stream<DeviceLocationPermission> getPermissionStream({
+    Duration pollingInterval = const Duration(seconds: 1),
+  }) {
+    final controller = _permissionController ??=
+        StreamController<DeviceLocationPermission>.broadcast();
+    return controller.stream;
+  }
+
+  @override
+  Stream<DeviceLocationServiceStatus> getServiceStatusStream() {
     final controller = _serviceController ??=
-        StreamController<ServiceStatus>.broadcast();
+        StreamController<DeviceLocationServiceStatus>.broadcast();
     return controller.stream;
   }
 
   @override
-  Future<LocationAccuracyStatus> getLocationAccuracy() async =>
+  Future<DeviceLocationAccuracyStatus> getLocationAccuracy() async =>
       _maybeThrow(accuracy);
 
   @override
-  Future<LocationAccuracyStatus> requestTemporaryFullAccuracy({
+  Future<DeviceLocationAccuracyStatus> requestTemporaryFullAccuracy({
     required String purposeKey,
   }) async {
     lastPurposeKey = purposeKey;
@@ -244,8 +247,16 @@ class DeviceGeolocationMock extends DeviceGeolocationPlatform
   }
 
   @override
-  Future<bool> openAppSettings() async => _maybeThrow(settingsOpened);
+  Future<bool> openAppSettings({
+    DeviceGeolocationSettingsCallback? callback,
+  }) async => _maybeThrow(settingsOpened);
 
   @override
-  Future<bool> openLocationSettings() async => _maybeThrow(settingsOpened);
+  Future<bool> openLocationSettings({
+    DeviceGeolocationSettingsCallback? callback,
+  }) async => _maybeThrow(settingsOpened);
+
+  @override
+  Stream<bool> get settingsOpenedStream =>
+      SettingsPanelLifecycle.instance.stream;
 }

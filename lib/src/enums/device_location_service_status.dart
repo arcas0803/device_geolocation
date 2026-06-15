@@ -1,5 +1,5 @@
 /// Current state of the device's location service.
-enum ServiceStatus {
+enum DeviceLocationServiceStatus {
   /// The location service is disabled.
   disabled,
 

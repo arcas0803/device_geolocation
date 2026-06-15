@@ -6,6 +6,7 @@ import 'package:dbus/dbus.dart';
 import 'device_geolocation_platform_interface.dart';
 import 'src/enums/enums.dart';
 import 'src/models/models.dart';
+import 'src/settings_panel_lifecycle.dart';
 
 /// Linux implementation of [DeviceGeolocationPlatform] backed by the
 /// GeoClue2 D-Bus service (`org.freedesktop.GeoClue2`).
@@ -82,24 +83,24 @@ class DeviceGeolocationLinux extends DeviceGeolocationPlatform {
     }
   }
 
-  int _accuracyToGeoClueLevel(LocationAccuracy accuracy) {
+  int _accuracyToGeoClueLevel(DeviceLocationAccuracy accuracy) {
     switch (accuracy) {
-      case LocationAccuracy.reduced:
-      case LocationAccuracy.lowest:
+      case DeviceLocationAccuracy.reduced:
+      case DeviceLocationAccuracy.lowest:
         return 1; // COUNTRY
-      case LocationAccuracy.low:
+      case DeviceLocationAccuracy.low:
         return 4; // CITY
-      case LocationAccuracy.medium:
+      case DeviceLocationAccuracy.medium:
         return 5; // NEIGHBORHOOD
-      case LocationAccuracy.high:
+      case DeviceLocationAccuracy.high:
         return 6; // STREET
-      case LocationAccuracy.best:
-      case LocationAccuracy.bestForNavigation:
+      case DeviceLocationAccuracy.best:
+      case DeviceLocationAccuracy.bestForNavigation:
         return 8; // EXACT
     }
   }
 
-  Future<Position> _readLocation(DBusObjectPath path) async {
+  Future<DevicePosition> _readLocation(DBusObjectPath path) async {
     final loc = DBusRemoteObject(_bus, name: _service, path: path);
     Future<double> readDouble(String name) async {
       final v = await loc.getProperty(
@@ -132,7 +133,7 @@ class DeviceGeolocationLinux extends DeviceGeolocationPlatform {
       // Some GeoClue versions omit Timestamp — fall back to "now".
     }
 
-    return Position(
+    return DevicePosition(
       latitude: lat,
       longitude: lon,
       timestamp: DateTime.fromMillisecondsSinceEpoch(timestampMs, isUtc: true),
@@ -147,13 +148,13 @@ class DeviceGeolocationLinux extends DeviceGeolocationPlatform {
   }
 
   @override
-  Future<LocationPermission> checkPermission() async =>
-      LocationPermission.whileInUse;
+  Future<DeviceLocationPermission> checkPermission() async =>
+      DeviceLocationPermission.whileInUse;
 
   @override
-  Future<LocationPermission> requestPermission({
+  Future<DeviceLocationPermission> requestPermission({
     bool requestBackground = false,
-  }) async => LocationPermission.whileInUse;
+  }) async => DeviceLocationPermission.whileInUse;
 
   @override
   Future<bool> isLocationServiceEnabled() async {
@@ -170,20 +171,12 @@ class DeviceGeolocationLinux extends DeviceGeolocationPlatform {
   }
 
   @override
-  Future<Position?> getLastKnownPosition({
-    bool forceLocationManager = false,
+  Future<DevicePosition> getCurrentPosition({
+    DeviceLocationSettings? deviceLocationSettings,
   }) async {
-    // GeoClue2 does not expose a cached last-known position.
-    return null;
-  }
-
-  @override
-  Future<Position> getCurrentPosition({
-    LocationSettings? locationSettings,
-  }) async {
-    final settings = locationSettings ?? const LocationSettings();
+    final settings = deviceLocationSettings ?? const DeviceLocationSettings();
     final client = await _getOrCreateClient();
-    final completer = Completer<Position>();
+    final completer = Completer<DevicePosition>();
     StreamSubscription<DBusSignal>? subscription;
 
     final signals = DBusRemoteObjectSignalStream(
@@ -234,9 +227,11 @@ class DeviceGeolocationLinux extends DeviceGeolocationPlatform {
   }
 
   @override
-  Stream<Position> getPositionStream({LocationSettings? locationSettings}) {
-    final settings = locationSettings ?? const LocationSettings();
-    late StreamController<Position> controller;
+  Stream<DevicePosition> getPositionStream({
+    DeviceLocationSettings? deviceLocationSettings,
+  }) {
+    final settings = deviceLocationSettings ?? const DeviceLocationSettings();
+    late StreamController<DevicePosition> controller;
     DBusRemoteObject? client;
     StreamSubscription<DBusSignal>? subscription;
 
@@ -273,7 +268,7 @@ class DeviceGeolocationLinux extends DeviceGeolocationPlatform {
       }
     }
 
-    controller = StreamController<Position>(
+    controller = StreamController<DevicePosition>(
       onListen: () {
         unawaited(
           start().catchError((Object e, StackTrace st) {
@@ -288,26 +283,60 @@ class DeviceGeolocationLinux extends DeviceGeolocationPlatform {
   }
 
   @override
-  Stream<ServiceStatus> getServiceStatusStream() async* {
-    yield (await isLocationServiceEnabled())
-        ? ServiceStatus.enabled
-        : ServiceStatus.disabled;
+  Stream<DeviceLocationPermission> getPermissionStream({
+    Duration pollingInterval = const Duration(seconds: 1),
+  }) {
+    final controller = StreamController<DeviceLocationPermission>.broadcast();
+    Timer? timer;
+
+    Future<void> emitCurrent() async {
+      if (controller.isClosed) return;
+      try {
+        final permission = await checkPermission();
+        if (!controller.isClosed) controller.add(permission);
+      } on Exception catch (e) {
+        if (!controller.isClosed) controller.addError(e);
+      }
+    }
+
+    controller.onListen = () {
+      timer = Timer.periodic(pollingInterval, (_) => emitCurrent());
+      emitCurrent();
+    };
+
+    controller.onCancel = () {
+      timer?.cancel();
+    };
+
+    return controller.stream;
   }
 
   @override
-  Future<LocationAccuracyStatus> getLocationAccuracy() async =>
-      LocationAccuracyStatus.precise;
+  Stream<DeviceLocationServiceStatus> getServiceStatusStream() async* {
+    yield (await isLocationServiceEnabled())
+        ? DeviceLocationServiceStatus.enabled
+        : DeviceLocationServiceStatus.disabled;
+  }
 
   @override
-  Future<LocationAccuracyStatus> requestTemporaryFullAccuracy({
+  Future<DeviceLocationAccuracyStatus> getLocationAccuracy() async =>
+      DeviceLocationAccuracyStatus.precise;
+
+  @override
+  Future<DeviceLocationAccuracyStatus> requestTemporaryFullAccuracy({
     required String purposeKey,
-  }) async => LocationAccuracyStatus.precise;
+  }) async => DeviceLocationAccuracyStatus.precise;
 
   @override
-  Future<bool> openAppSettings() => openLocationSettings();
+  Future<bool> openAppSettings({
+    DeviceGeolocationSettingsCallback? callback,
+  }) =>
+      openLocationSettings(callback: callback);
 
   @override
-  Future<bool> openLocationSettings() async {
+  Future<bool> openLocationSettings({
+    DeviceGeolocationSettingsCallback? callback,
+  }) async {
     final attempts = <List<String>>[
       ['gnome-control-center', 'privacy', 'location'],
       ['systemsettings5', 'kcm_location'],
@@ -323,4 +352,8 @@ class DeviceGeolocationLinux extends DeviceGeolocationPlatform {
     }
     return false;
   }
+
+  @override
+  Stream<bool> get settingsOpenedStream =>
+      SettingsPanelLifecycle.instance.stream;
 }

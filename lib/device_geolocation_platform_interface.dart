@@ -1,11 +1,19 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'device_geolocation_method_channel.dart';
 import 'src/enums/enums.dart';
+import 'src/geospatial/geospatial_algorithm.dart';
+import 'src/geospatial/geospatial_calculator.dart';
 import 'src/models/models.dart';
+
+/// Signature for callbacks invoked when the user returns from the system
+/// settings screen.
+typedef DeviceGeolocationSettingsCallback = void Function(
+  DeviceLocationServiceStatus serviceStatus,
+  DeviceLocationPermission permission,
+);
 
 /// Interface that all platform implementations of `device_geolocation` must
 /// implement.
@@ -27,11 +35,11 @@ abstract class DeviceGeolocationPlatform extends PlatformInterface {
     _instance = instance;
   }
 
-  Future<LocationPermission> checkPermission() {
+  Future<DeviceLocationPermission> checkPermission() {
     throw UnimplementedError('checkPermission() has not been implemented.');
   }
 
-  Future<LocationPermission> requestPermission({
+  Future<DeviceLocationPermission> requestPermission({
     bool requestBackground = false,
   }) {
     throw UnimplementedError('requestPermission() has not been implemented.');
@@ -43,31 +51,37 @@ abstract class DeviceGeolocationPlatform extends PlatformInterface {
     );
   }
 
-  Future<Position?> getLastKnownPosition({bool forceLocationManager = false}) {
-    throw UnimplementedError(
-      'getLastKnownPosition() has not been implemented.',
-    );
-  }
-
-  Future<Position> getCurrentPosition({LocationSettings? locationSettings}) {
+  Future<DevicePosition> getCurrentPosition({
+    DeviceLocationSettings? deviceLocationSettings,
+  }) {
     throw UnimplementedError('getCurrentPosition() has not been implemented.');
   }
 
-  Stream<Position> getPositionStream({LocationSettings? locationSettings}) {
+  Stream<DevicePosition> getPositionStream({
+    DeviceLocationSettings? deviceLocationSettings,
+  }) {
     throw UnimplementedError('getPositionStream() has not been implemented.');
   }
 
-  Stream<ServiceStatus> getServiceStatusStream() {
+  Stream<DeviceLocationPermission> getPermissionStream({
+    Duration pollingInterval = const Duration(seconds: 1),
+  }) {
+    throw UnimplementedError(
+      'getPermissionStream() has not been implemented.',
+    );
+  }
+
+  Stream<DeviceLocationServiceStatus> getServiceStatusStream() {
     throw UnimplementedError(
       'getServiceStatusStream() has not been implemented.',
     );
   }
 
-  Future<LocationAccuracyStatus> getLocationAccuracy() {
+  Future<DeviceLocationAccuracyStatus> getLocationAccuracy() {
     throw UnimplementedError('getLocationAccuracy() has not been implemented.');
   }
 
-  Future<LocationAccuracyStatus> requestTemporaryFullAccuracy({
+  Future<DeviceLocationAccuracyStatus> requestTemporaryFullAccuracy({
     required String purposeKey,
   }) {
     throw UnimplementedError(
@@ -75,33 +89,45 @@ abstract class DeviceGeolocationPlatform extends PlatformInterface {
     );
   }
 
-  Future<bool> openAppSettings() {
+  Future<bool> openAppSettings({
+    DeviceGeolocationSettingsCallback? callback,
+  }) {
     throw UnimplementedError('openAppSettings() has not been implemented.');
   }
 
-  Future<bool> openLocationSettings() {
+  Future<bool> openLocationSettings({
+    DeviceGeolocationSettingsCallback? callback,
+  }) {
     throw UnimplementedError(
       'openLocationSettings() has not been implemented.',
     );
   }
 
-  /// Great-circle distance between two coordinates in meters (Haversine).
+  /// Stream that emits `true` when a system settings panel is opened by this
+  /// plugin and `false` when the app returns to the foreground.
+  Stream<bool> get settingsOpenedStream {
+    throw UnimplementedError(
+      'settingsOpenedStream has not been implemented.',
+    );
+  }
+
+  /// Great-circle distance between two coordinates in meters.
+  ///
+  /// [algorithm] selects the geodetic formula. [GeospatialAlgorithm.vincenty]
+  /// (default) is more accurate; [GeospatialAlgorithm.haversine] is faster.
   double distanceBetween(
     double startLatitude,
     double startLongitude,
     double endLatitude,
-    double endLongitude,
-  ) {
-    const earthRadius = 6378137.0;
-    final dLat = _radians(endLatitude - startLatitude);
-    final dLon = _radians(endLongitude - startLongitude);
-    final a =
-        math.pow(math.sin(dLat / 2), 2) +
-        math.pow(math.sin(dLon / 2), 2) *
-            math.cos(_radians(startLatitude)) *
-            math.cos(_radians(endLatitude));
-    return earthRadius * 2 * math.asin(math.sqrt(a));
-  }
+    double endLongitude, {
+    GeospatialAlgorithm algorithm = GeospatialAlgorithm.vincenty,
+  }) => calculateDistance(
+    startLatitude,
+    startLongitude,
+    endLatitude,
+    endLongitude,
+    algorithm: algorithm,
+  );
 
   /// Initial bearing (forward azimuth) from start to end coordinates,
   /// expressed in degrees.
@@ -110,19 +136,10 @@ abstract class DeviceGeolocationPlatform extends PlatformInterface {
     double startLongitude,
     double endLatitude,
     double endLongitude,
-  ) {
-    final startLat = _radians(startLatitude);
-    final startLon = _radians(startLongitude);
-    final endLat = _radians(endLatitude);
-    final endLon = _radians(endLongitude);
-
-    final y = math.sin(endLon - startLon) * math.cos(endLat);
-    final x =
-        math.cos(startLat) * math.sin(endLat) -
-        math.sin(startLat) * math.cos(endLat) * math.cos(endLon - startLon);
-    return _degrees(math.atan2(y, x));
-  }
-
-  static double _radians(double degrees) => degrees * math.pi / 180.0;
-  static double _degrees(double radians) => radians * 180.0 / math.pi;
+  ) => calculateBearing(
+    startLatitude,
+    startLongitude,
+    endLatitude,
+    endLongitude,
+  );
 }

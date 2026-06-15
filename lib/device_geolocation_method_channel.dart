@@ -7,6 +7,7 @@ import 'device_geolocation_platform_interface.dart';
 import 'src/enums/enums.dart';
 import 'src/errors/geolocation_exceptions.dart';
 import 'src/models/models.dart';
+import 'src/settings_panel_lifecycle.dart';
 
 /// Implementation of [DeviceGeolocationPlatform] that uses method/event
 /// channels to talk to the native side.
@@ -24,25 +25,30 @@ class MethodChannelDeviceGeolocation extends DeviceGeolocationPlatform {
     'device_geolocation/serviceUpdates',
   );
 
+  @visibleForTesting
+  final EventChannel permissionUpdatesChannel = const EventChannel(
+    'device_geolocation/permissionUpdates',
+  );
+
   @override
-  Future<LocationPermission> checkPermission() async {
+  Future<DeviceLocationPermission> checkPermission() async {
     try {
       final index = await methodChannel.invokeMethod<int>('checkPermission');
-      return LocationPermission.values[index ?? 0];
+      return DeviceLocationPermission.values[index ?? 0];
     } on PlatformException catch (e) {
       throw _mapException(e);
     }
   }
 
   @override
-  Future<LocationPermission> requestPermission({
+  Future<DeviceLocationPermission> requestPermission({
     bool requestBackground = false,
   }) async {
     try {
       final index = await methodChannel.invokeMethod<int>('requestPermission', {
         'requestBackground': requestBackground,
       });
-      return LocationPermission.values[index ?? 0];
+      return DeviceLocationPermission.values[index ?? 0];
     } on PlatformException catch (e) {
       throw _mapException(e);
     }
@@ -57,44 +63,33 @@ class MethodChannelDeviceGeolocation extends DeviceGeolocationPlatform {
   }
 
   @override
-  Future<Position?> getLastKnownPosition({
-    bool forceLocationManager = false,
+  Future<DevicePosition> getCurrentPosition({
+    DeviceLocationSettings? deviceLocationSettings,
   }) async {
-    try {
-      final result = await methodChannel.invokeMapMethod<String, dynamic>(
-        'getLastKnownPosition',
-        {'forceLocationManager': forceLocationManager},
-      );
-      return result == null ? null : Position.fromMap(result);
-    } on PlatformException catch (e) {
-      throw _mapException(e);
-    }
-  }
-
-  @override
-  Future<Position> getCurrentPosition({
-    LocationSettings? locationSettings,
-  }) async {
+    final settings = deviceLocationSettings ?? const DeviceLocationSettings();
     try {
       final result = await methodChannel.invokeMapMethod<String, dynamic>(
         'getCurrentPosition',
-        locationSettings?.toJson() ?? const <String, dynamic>{},
+        settings.toJson(),
       );
       if (result == null) {
         throw PositionUpdateException('Platform returned no position');
       }
-      return Position.fromMap(result);
+      return DevicePosition.fromMap(result);
     } on PlatformException catch (e) {
       throw _mapException(e);
     }
   }
 
   @override
-  Stream<Position> getPositionStream({LocationSettings? locationSettings}) {
-    final args = locationSettings?.toJson() ?? const <String, dynamic>{};
+  Stream<DevicePosition> getPositionStream({
+    DeviceLocationSettings? deviceLocationSettings,
+  }) {
+    final args =
+        (deviceLocationSettings ?? const DeviceLocationSettings()).toJson();
     return locationUpdatesChannel
         .receiveBroadcastStream(args)
-        .map<Position>((dynamic event) => Position.fromMap(event))
+        .map<DevicePosition>((dynamic event) => DevicePosition.fromMap(event))
         .handleError((Object error) {
           if (error is PlatformException) {
             throw _mapException(error);
@@ -104,24 +99,74 @@ class MethodChannelDeviceGeolocation extends DeviceGeolocationPlatform {
   }
 
   @override
-  Stream<ServiceStatus> getServiceStatusStream() {
-    return serviceUpdatesChannel.receiveBroadcastStream().map<ServiceStatus>((
-      dynamic event,
-    ) {
+  Stream<DeviceLocationPermission> getPermissionStream({
+    Duration pollingInterval = const Duration(seconds: 1),
+  }) {
+    final controller = StreamController<DeviceLocationPermission>.broadcast();
+    StreamSubscription<dynamic>? nativeSub;
+    Timer? timer;
+
+    Future<void> emitCurrent() async {
+      if (controller.isClosed) return;
+      try {
+        final permission = await checkPermission();
+        if (!controller.isClosed) controller.add(permission);
+      } on Exception catch (e) {
+        if (!controller.isClosed) controller.addError(e);
+      }
+    }
+
+    controller.onListen = () {
+      timer = Timer.periodic(pollingInterval, (_) => emitCurrent());
+      try {
+        nativeSub = permissionUpdatesChannel
+            .receiveBroadcastStream()
+            .listen(
+              (dynamic event) {
+                final index = event as int;
+                if (!controller.isClosed) {
+                  controller.add(DeviceLocationPermission.values[index]);
+                }
+              },
+              onError: (_) {
+                // Polling will keep the stream alive.
+              },
+            );
+      } on Exception {
+        // Event channel not implemented on the native side; polling covers it.
+      }
+      emitCurrent();
+    };
+
+    controller.onCancel = () {
+      timer?.cancel();
+      timer = null;
+      nativeSub?.cancel();
+      nativeSub = null;
+    };
+
+    return controller.stream;
+  }
+
+  @override
+  Stream<DeviceLocationServiceStatus> getServiceStatusStream() {
+    return serviceUpdatesChannel.receiveBroadcastStream().map<
+      DeviceLocationServiceStatus
+    >((dynamic event) {
       final index = event as int;
-      return ServiceStatus.values[index];
+      return DeviceLocationServiceStatus.values[index];
     });
   }
 
   @override
-  Future<LocationAccuracyStatus> getLocationAccuracy() async {
+  Future<DeviceLocationAccuracyStatus> getLocationAccuracy() async {
     final index = await methodChannel.invokeMethod<int>('getLocationAccuracy');
-    return LocationAccuracyStatus.values[index ??
-        LocationAccuracyStatus.unknown.index];
+    return DeviceLocationAccuracyStatus.values[index ??
+        DeviceLocationAccuracyStatus.unknown.index];
   }
 
   @override
-  Future<LocationAccuracyStatus> requestTemporaryFullAccuracy({
+  Future<DeviceLocationAccuracyStatus> requestTemporaryFullAccuracy({
     required String purposeKey,
   }) async {
     try {
@@ -129,26 +174,34 @@ class MethodChannelDeviceGeolocation extends DeviceGeolocationPlatform {
         'requestTemporaryFullAccuracy',
         {'purposeKey': purposeKey},
       );
-      return LocationAccuracyStatus.values[index ??
-          LocationAccuracyStatus.unknown.index];
+      return DeviceLocationAccuracyStatus.values[index ??
+          DeviceLocationAccuracyStatus.unknown.index];
     } on PlatformException catch (e) {
       throw _mapException(e);
     }
   }
 
   @override
-  Future<bool> openAppSettings() async {
+  Future<bool> openAppSettings({
+    DeviceGeolocationSettingsCallback? callback,
+  }) async {
     final opened = await methodChannel.invokeMethod<bool>('openAppSettings');
     return opened ?? false;
   }
 
   @override
-  Future<bool> openLocationSettings() async {
+  Future<bool> openLocationSettings({
+    DeviceGeolocationSettingsCallback? callback,
+  }) async {
     final opened = await methodChannel.invokeMethod<bool>(
       'openLocationSettings',
     );
     return opened ?? false;
   }
+
+  @override
+  Stream<bool> get settingsOpenedStream =>
+      SettingsPanelLifecycle.instance.stream;
 
   Exception _mapException(PlatformException e) {
     switch (e.code) {

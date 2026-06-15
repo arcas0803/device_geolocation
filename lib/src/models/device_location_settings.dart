@@ -1,16 +1,16 @@
-import '../enums/location_accuracy.dart';
+import '../enums/device_location_accuracy.dart';
 import 'foreground_notification_config.dart';
 
 /// Cross-platform options used to request a location.
-class LocationSettings {
-  const LocationSettings({
-    this.accuracy = LocationAccuracy.best,
+class DeviceLocationSettings {
+  const DeviceLocationSettings({
+    this.accuracy = DeviceLocationAccuracy.best,
     this.distanceFilter = 0,
     this.timeLimit,
   });
 
-  /// Desired accuracy of the position. Defaults to [LocationAccuracy.best].
-  final LocationAccuracy accuracy;
+  /// Desired accuracy of the position. Defaults to [DeviceLocationAccuracy.best].
+  final DeviceLocationAccuracy accuracy;
 
   /// Minimum distance in meters between updates. `0` (default) emits all.
   final int distanceFilter;
@@ -27,9 +27,9 @@ class LocationSettings {
 }
 
 /// Android-specific location settings.
-class AndroidSettings extends LocationSettings {
+class AndroidSettings extends DeviceLocationSettings {
   const AndroidSettings({
-    super.accuracy = LocationAccuracy.best,
+    super.accuracy = DeviceLocationAccuracy.best,
     super.distanceFilter = 0,
     super.timeLimit,
     this.forceLocationManager = false,
@@ -61,9 +61,9 @@ class AndroidSettings extends LocationSettings {
 }
 
 /// Apple-specific location settings (iOS / macOS).
-class AppleSettings extends LocationSettings {
+class AppleSettings extends DeviceLocationSettings {
   const AppleSettings({
-    super.accuracy = LocationAccuracy.best,
+    super.accuracy = DeviceLocationAccuracy.best,
     super.distanceFilter = 0,
     super.timeLimit,
     this.activityType = ActivityType.other,
@@ -95,9 +95,9 @@ class AppleSettings extends LocationSettings {
 }
 
 /// Web-specific location settings.
-class WebSettings extends LocationSettings {
+class WebSettings extends DeviceLocationSettings {
   const WebSettings({
-    super.accuracy = LocationAccuracy.best,
+    super.accuracy = DeviceLocationAccuracy.best,
     super.distanceFilter = 0,
     super.timeLimit,
     this.maximumAge = Duration.zero,

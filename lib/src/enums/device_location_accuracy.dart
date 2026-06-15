@@ -1,5 +1,5 @@
 /// Desired precision for location updates.
-enum LocationAccuracy {
+enum DeviceLocationAccuracy {
   /// Lowest accuracy. ~3000m on iOS / ~500m on Android.
   lowest,
 

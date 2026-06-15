@@ -14,9 +14,9 @@ void main() {
       expect(p.checkPermission, throwsUnimplementedError);
       expect(p.requestPermission, throwsUnimplementedError);
       expect(p.isLocationServiceEnabled, throwsUnimplementedError);
-      expect(p.getLastKnownPosition, throwsUnimplementedError);
       expect(p.getCurrentPosition, throwsUnimplementedError);
       expect(() => p.getPositionStream(), throwsUnimplementedError);
+      expect(() => p.getPermissionStream(), throwsUnimplementedError);
       expect(p.getServiceStatusStream, throwsUnimplementedError);
       expect(p.getLocationAccuracy, throwsUnimplementedError);
       expect(
@@ -25,6 +25,7 @@ void main() {
       );
       expect(p.openAppSettings, throwsUnimplementedError);
       expect(p.openLocationSettings, throwsUnimplementedError);
+      expect(() => p.settingsOpenedStream, throwsUnimplementedError);
     },
   );
 

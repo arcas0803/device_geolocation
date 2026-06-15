@@ -2,13 +2,13 @@ import 'package:device_geolocation/device_geolocation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('Position', () {
+  group('DevicePosition', () {
     final timestamp = DateTime.fromMillisecondsSinceEpoch(
       1700000000000,
       isUtc: true,
     );
 
-    Position sample({bool isMocked = false, int? floor}) => Position(
+    DevicePosition sample({bool isMocked = false, int? floor}) => DevicePosition(
       latitude: 41.3851,
       longitude: 2.1734,
       timestamp: timestamp,
@@ -25,12 +25,12 @@ void main() {
 
     test('toJson <-> fromMap is a round-trip', () {
       final original = sample(isMocked: true, floor: 3);
-      final restored = Position.fromMap(original.toJson());
+      final restored = DevicePosition.fromMap(original.toJson());
       expect(restored, equals(original));
     });
 
     test('fromMap fills optional fields with defaults', () {
-      final p = Position.fromMap(<String, dynamic>{
+      final p = DevicePosition.fromMap(<String, dynamic>{
         'latitude': 1.0,
         'longitude': 2.0,
       });
@@ -44,14 +44,14 @@ void main() {
 
     test('fromMap throws when latitude is missing', () {
       expect(
-        () => Position.fromMap(<String, dynamic>{'longitude': 1.0}),
+        () => DevicePosition.fromMap(<String, dynamic>{'longitude': 1.0}),
         throwsArgumentError,
       );
     });
 
     test('fromMap throws when longitude is missing', () {
       expect(
-        () => Position.fromMap(<String, dynamic>{'latitude': 1.0}),
+        () => DevicePosition.fromMap(<String, dynamic>{'latitude': 1.0}),
         throwsArgumentError,
       );
     });

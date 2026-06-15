@@ -16,11 +16,15 @@ geolocation across **Android, iOS, macOS, Web, Windows and Linux**.
 
 ## Features
 
-- One-shot, last-known and streaming positions.
+- One-shot and streaming positions.
+- Global default settings via `DeviceGeolocation.configure()`.
 - Permission lifecycle (`checkPermission`, `requestPermission`) with optional
   Android background-location escalation.
+- Permission change stream (`getPermissionStream`).
 - Service-status stream for OS-level location toggles.
 - iOS 14+ temporary full-accuracy requests.
+- Settings callbacks and `settingsOpenedStream` so the app knows when the user
+  returns from the OS settings screen.
 - Distance and bearing helpers via the Haversine formula.
 
 ## Platform support
@@ -61,11 +65,12 @@ capabilities are actually wired on each platform.
 | `checkPermission` / `requestPermission` | ✅ | ✅ | ✅ | ✅¹ | ✅ | ✅² |
 | Background permission escalation       | ✅ | ✅³ | — | — | — | — |
 | `isLocationServiceEnabled`             | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `getLastKnownPosition`                 | ✅ | ✅ | ✅ | —⁴ | ✅ | ✅ |
 | `getCurrentPosition`                   | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `getPositionStream`                    | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Background foreground service          | ✅ | —⁹ | — | — | — | — |
 | `getServiceStatusStream`               | ✅ | ✅ | ✅ | —⁵ | ✅ | ✅ |
+| `getPermissionStream`                  | ✅⁴ | ✅ | ✅ | ✅ | ✅⁴ | ✅⁴ |
+| `settingsOpenedStream` / settings callbacks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `getLocationAccuracy`                  | ✅ | ✅ | ✅ | ✅⁶ | ✅⁶ | ✅⁶ |
 | `requestTemporaryFullAccuracy`         | —⁷ | ✅ | ✅ | —⁷ | —⁷ | —⁷ |
 | `openAppSettings` / `openLocationSettings` | ✅ | ✅ | ✅ | —⁸ | ✅ | ✅ |
@@ -76,8 +81,8 @@ capabilities are actually wired on each platform.
 ² Linux exposes a single `whileInUse`-like permission once the GeoClue
 agent has approved the app.<br>
 ³ iOS `Always` authorization (use `NSLocationAlwaysAndWhenInUseUsageDescription`).<br>
-⁴ The browser Geolocation API does not expose a cached last position; this
-returns `null`.<br>
+⁴ Android and Linux do not expose a native permission-change event; the
+stream falls back to polling. Windows relies on OS-level change detection.<br>
 ⁵ The browser does not expose a service-status event; the stream emits the
 initial status and stays open.<br>
 ⁶ Always reports `precise` (or `unknown` if permission is denied) because
@@ -94,7 +99,7 @@ iOS permissions section above.</sup>
 
 ```yaml
 dependencies:
-  device_geolocation: ^1.1.0
+  device_geolocation: ^2.0.0
 ```
 
 ## Permissions setup
@@ -156,23 +161,27 @@ distributions). No build-time configuration is needed.
 import 'package:device_geolocation/device_geolocation.dart';
 
 Future<void> locateMe() async {
+  // Optional: configure once so every call uses these defaults.
+  DeviceGeolocation.configure(
+    const DeviceLocationSettings(accuracy: DeviceLocationAccuracy.high),
+  );
+
   if (!await DeviceGeolocation.isLocationServiceEnabled()) {
     await DeviceGeolocation.openLocationSettings();
     return;
   }
 
   var permission = await DeviceGeolocation.checkPermission();
-  if (permission == LocationPermission.denied) {
+  if (permission == DeviceLocationPermission.denied) {
     permission = await DeviceGeolocation.requestPermission();
   }
-  if (permission == LocationPermission.deniedForever) {
+  if (permission == DeviceLocationPermission.deniedForever) {
     await DeviceGeolocation.openAppSettings();
     return;
   }
 
-  final position = await DeviceGeolocation.getCurrentPosition(
-    locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-  );
+  // Uses the configured settings because no override is passed.
+  final position = await DeviceGeolocation.getCurrentPosition();
   print('${position.latitude}, ${position.longitude}');
 }
 ```
@@ -181,8 +190,8 @@ Future<void> locateMe() async {
 
 ```dart
 final subscription = DeviceGeolocation.getPositionStream(
-  locationSettings: const LocationSettings(
-    accuracy: LocationAccuracy.high,
+  deviceLocationSettings: const DeviceLocationSettings(
+    accuracy: DeviceLocationAccuracy.high,
     distanceFilter: 10,
   ),
 ).listen((position) {
@@ -196,9 +205,27 @@ await subscription.cancel();
 ### Distance and bearing
 
 ```dart
+// Default uses the more accurate Vincenty formula.
 final meters = DeviceGeolocation.distanceBetween(
     52.2165157, 6.9437819, 52.3546274, 4.8285838);
+
+// Use Haversine for a faster, spherical-Earth approximation.
+final metersHaversine = DeviceGeolocation.distanceBetween(
+    52.2165157, 6.9437819, 52.3546274, 4.8285838,
+    algorithm: GeospatialAlgorithm.haversine);
+
 final bearing = DeviceGeolocation.bearingBetween(
+    52.2165157, 6.9437819, 52.3546274, 4.8285838);
+```
+
+Heavy calculations can be offloaded to an isolate. On the web, where
+isolates are unavailable, the call falls back to the synchronous version on
+the main thread.
+
+```dart
+final meters = await DeviceGeolocation.distanceBetweenIsolate(
+    52.2165157, 6.9437819, 52.3546274, 4.8285838);
+final bearing = await DeviceGeolocation.bearingBetweenIsolate(
     52.2165157, 6.9437819, 52.3546274, 4.8285838);
 ```
 
@@ -224,8 +251,8 @@ another task. Pass a `ForegroundNotificationConfig` inside
 
 ```dart
 final subscription = DeviceGeolocation.getPositionStream(
-  locationSettings: const AndroidSettings(
-    accuracy: LocationAccuracy.high,
+  deviceLocationSettings: const AndroidSettings(
+    accuracy: DeviceLocationAccuracy.high,
     distanceFilter: 10,
     intervalDuration: Duration(seconds: 5),
     foregroundNotificationConfig: ForegroundNotificationConfig(
@@ -283,21 +310,25 @@ store policy requires for any app shipping this permission.
 
 ## API reference
 
-| Member                                                          | Returns                            |
-| --------------------------------------------------------------- | ---------------------------------- |
-| `DeviceGeolocation.checkPermission()`                           | `Future<LocationPermission>`       |
-| `DeviceGeolocation.requestPermission({requestBackground})`      | `Future<LocationPermission>`       |
-| `DeviceGeolocation.isLocationServiceEnabled()`                  | `Future<bool>`                     |
-| `DeviceGeolocation.getLastKnownPosition({forceLocationManager})`| `Future<Position?>`                |
-| `DeviceGeolocation.getCurrentPosition({locationSettings})`      | `Future<Position>`                 |
-| `DeviceGeolocation.getPositionStream({locationSettings})`       | `Stream<Position>`                 |
-| `DeviceGeolocation.getServiceStatusStream()`                    | `Stream<ServiceStatus>`            |
-| `DeviceGeolocation.getLocationAccuracy()`                       | `Future<LocationAccuracyStatus>`   |
-| `DeviceGeolocation.requestTemporaryFullAccuracy({purposeKey})`  | `Future<LocationAccuracyStatus>`   |
-| `DeviceGeolocation.openAppSettings()`                           | `Future<bool>`                     |
-| `DeviceGeolocation.openLocationSettings()`                      | `Future<bool>`                     |
-| `DeviceGeolocation.distanceBetween(lat1, lon1, lat2, lon2)`     | `double` (meters)                  |
-| `DeviceGeolocation.bearingBetween(lat1, lon1, lat2, lon2)`      | `double` (degrees)                 |
+| Member                                                                   | Returns                                  |
+| ------------------------------------------------------------------------ | ---------------------------------------- |
+| `DeviceGeolocation.configure(settings)`                                  | `void`                                   |
+| `DeviceGeolocation.checkPermission()`                                    | `Future<DeviceLocationPermission>`       |
+| `DeviceGeolocation.requestPermission({requestBackground})`               | `Future<DeviceLocationPermission>`       |
+| `DeviceGeolocation.isLocationServiceEnabled()`                           | `Future<bool>`                           |
+| `DeviceGeolocation.getCurrentPosition({deviceLocationSettings})`         | `Future<DevicePosition>`                 |
+| `DeviceGeolocation.getPositionStream({deviceLocationSettings})`          | `Stream<DevicePosition>`                 |
+| `DeviceGeolocation.getPermissionStream({pollingInterval})`               | `Stream<DeviceLocationPermission>`       |
+| `DeviceGeolocation.getServiceStatusStream()`                             | `Stream<DeviceLocationServiceStatus>`    |
+| `DeviceGeolocation.getLocationAccuracy()`                                | `Future<DeviceLocationAccuracyStatus>`   |
+| `DeviceGeolocation.requestTemporaryFullAccuracy({purposeKey})`           | `Future<DeviceLocationAccuracyStatus>`   |
+| `DeviceGeolocation.openAppSettings({callback})`                          | `Future<bool>`                           |
+| `DeviceGeolocation.openLocationSettings({callback})`                     | `Future<bool>`                           |
+| `DeviceGeolocation.settingsOpenedStream`                                 | `Stream<bool>`                           |
+| `DeviceGeolocation.distanceBetween(lat1, lon1, lat2, lon2, {algorithm})` | `double` (meters)                        |
+| `DeviceGeolocation.distanceBetweenIsolate(lat1, lon1, lat2, lon2, {algorithm})` | `Future<double>` (meters)         |
+| `DeviceGeolocation.bearingBetween(lat1, lon1, lat2, lon2)`               | `double` (degrees)                       |
+| `DeviceGeolocation.bearingBetweenIsolate(lat1, lon1, lat2, lon2)`        | `Future<double>` (degrees)               |
 
 ## Migration from `flutter-geolocator`
 
@@ -306,13 +337,24 @@ store policy requires for any app shipping this permission.
 | `Geolocator.checkPermission()`              | `DeviceGeolocation.checkPermission()`                      |
 | `Geolocator.requestPermission()`            | `DeviceGeolocation.requestPermission()`                    |
 | `Geolocator.isLocationServiceEnabled()`     | `DeviceGeolocation.isLocationServiceEnabled()`             |
-| `Geolocator.getLastKnownPosition()`         | `DeviceGeolocation.getLastKnownPosition()`                 |
 | `Geolocator.getCurrentPosition()`           | `DeviceGeolocation.getCurrentPosition()`                   |
 | `Geolocator.getPositionStream()`            | `DeviceGeolocation.getPositionStream()`                    |
+| `Geolocator.getServiceStatusStream()`       | `DeviceGeolocation.getServiceStatusStream()`               |
 | `Geolocator.openAppSettings()`              | `DeviceGeolocation.openAppSettings()`                      |
 | `Geolocator.openLocationSettings()`         | `DeviceGeolocation.openLocationSettings()`                 |
 | `Geolocator.distanceBetween(...)`           | `DeviceGeolocation.distanceBetween(...)`                   |
 | `Geolocator.bearingBetween(...)`            | `DeviceGeolocation.bearingBetween(...)`                    |
+
+Type names in this package use the `Device` prefix:
+
+| Old (`geolocator`)         | New (`device_geolocation`)          |
+| -------------------------- | ----------------------------------- |
+| `Position`                 | `DevicePosition`                    |
+| `LocationSettings`         | `DeviceLocationSettings`            |
+| `LocationAccuracy`         | `DeviceLocationAccuracy`            |
+| `LocationPermission`       | `DeviceLocationPermission`          |
+| `LocationAccuracyStatus`   | `DeviceLocationAccuracyStatus`      |
+| `ServiceStatus`            | `DeviceLocationServiceStatus`       |
 
 Asking for background-location permission on Android 10+ collapses into a
 single call:
@@ -356,10 +398,10 @@ void main() {
   });
 
   test('simulates a denied permission', () async {
-    mock.permission = LocationPermission.deniedForever;
+    mock.permission = DeviceLocationPermission.deniedForever;
     expect(
       await DeviceGeolocation.checkPermission(),
-      LocationPermission.deniedForever,
+      DeviceLocationPermission.deniedForever,
     );
   });
 
@@ -373,9 +415,10 @@ void main() {
 }
 ```
 
-The mock also exposes `lastRequestedBackground`, `lastForcedLocationManager`,
-`lastLocationSettings` and `lastPurposeKey` for assertions, plus an async
-`reset()` to clear state and close stream controllers between tests.
+The mock also exposes `lastRequestedBackground`, `lastDeviceLocationSettings`
+and `lastPurposeKey` for assertions, plus methods to emit position, permission
+and service-status events. Call `await mock.reset()` between tests to clear
+state and close stream controllers.
 
 ## Test coverage
 

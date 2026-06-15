@@ -7,11 +7,13 @@ public class DeviceGeolocationPlugin: NSObject, FlutterPlugin {
   private let geolocationDelegate = GeolocationDelegate()
   private let positionStreamHandler: PositionStreamHandler
   private let serviceStreamHandler: ServiceStreamHandler
+  private let permissionStreamHandler: PermissionStreamHandler
 
   override init() {
     self.positionStreamHandler = PositionStreamHandler(
       delegate: geolocationDelegate, locationManager: locationManager)
     self.serviceStreamHandler = ServiceStreamHandler(delegate: geolocationDelegate)
+    self.permissionStreamHandler = PermissionStreamHandler(delegate: geolocationDelegate)
     super.init()
     locationManager.delegate = geolocationDelegate
     geolocationDelegate.manager = locationManager
@@ -32,6 +34,11 @@ public class DeviceGeolocationPlugin: NSObject, FlutterPlugin {
       name: "device_geolocation/serviceUpdates",
       binaryMessenger: registrar.messenger()
     ).setStreamHandler(instance.serviceStreamHandler)
+
+    FlutterEventChannel(
+      name: "device_geolocation/permissionUpdates",
+      binaryMessenger: registrar.messenger()
+    ).setStreamHandler(instance.permissionStreamHandler)
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -39,19 +46,15 @@ public class DeviceGeolocationPlugin: NSObject, FlutterPlugin {
     case "checkPermission":
       result(GeolocationDelegate.permissionIndex(from: currentAuthorizationStatus()))
     case "requestPermission":
+      if !ensurePermissionDefinitionsDeclared(result: result) { return }
       geolocationDelegate.requestPermission(result: result)
     case "isLocationServiceEnabled":
       DispatchQueue.global(qos: .userInitiated).async {
         let enabled = CLLocationManager.locationServicesEnabled()
         DispatchQueue.main.async { result(enabled) }
       }
-    case "getLastKnownPosition":
-      if let loc = locationManager.location {
-        result(GeolocationDelegate.locationToMap(loc))
-      } else {
-        result(nil)
-      }
     case "getCurrentPosition":
+      if !ensurePermissionDefinitionsDeclared(result: result) { return }
       let args = call.arguments as? [String: Any]
       geolocationDelegate.requestCurrentPosition(args: args, result: result)
     case "openAppSettings", "openLocationSettings":
@@ -77,6 +80,18 @@ public class DeviceGeolocationPlugin: NSObject, FlutterPlugin {
   private func currentAuthorizationStatus() -> CLAuthorizationStatus {
     return locationManager.authorizationStatus
   }
+
+  private func ensurePermissionDefinitionsDeclared(result: @escaping FlutterResult) -> Bool {
+    guard Bundle.main.object(forInfoDictionaryKey: "NSLocationWhenInUseUsageDescription") != nil else {
+      result(FlutterError(
+        code: "PERMISSION_DEFINITIONS_NOT_FOUND",
+        message: "Info.plist is missing NSLocationWhenInUseUsageDescription. " +
+          "Add the key with a usage description string.",
+        details: nil))
+      return false
+    }
+    return true
+  }
 }
 
 final class GeolocationDelegate: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
@@ -85,6 +100,7 @@ final class GeolocationDelegate: NSObject, CLLocationManagerDelegate, @unchecked
   private var currentPositionResult: FlutterResult?
   fileprivate var positionEventSink: FlutterEventSink?
   fileprivate var serviceEventSink: FlutterEventSink?
+  fileprivate var permissionEventSink: FlutterEventSink?
   private var isStreaming = false
 
   static func permissionIndex(from status: CLAuthorizationStatus) -> Int {
@@ -102,7 +118,7 @@ final class GeolocationDelegate: NSObject, CLLocationManagerDelegate, @unchecked
     [
       "latitude": loc.coordinate.latitude,
       "longitude": loc.coordinate.longitude,
-      "timestamp": Int(loc.timestamp.timeIntervalSince1970 * 1000),
+      "timestamp": Int(loc.timestamp.timeIntervalSinceEpoch * 1000),
       "accuracy": loc.horizontalAccuracy,
       "altitude": loc.altitude,
       "altitude_accuracy": loc.verticalAccuracy,
@@ -207,10 +223,12 @@ final class GeolocationDelegate: NSObject, CLLocationManagerDelegate, @unchecked
   // MARK: - CLLocationManagerDelegate
 
   func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    let index = Self.permissionIndex(from: manager.authorizationStatus)
     if let pr = permissionResult {
       permissionResult = nil
-      pr(Self.permissionIndex(from: manager.authorizationStatus))
+      pr(index)
     }
+    permissionEventSink?(index)
     DispatchQueue.global(qos: .userInitiated).async {
       let enabled = CLLocationManager.locationServicesEnabled()
       DispatchQueue.main.async { self.serviceEventSink?(enabled ? 1 : 0) }
@@ -302,6 +320,27 @@ final class ServiceStreamHandler: NSObject, FlutterStreamHandler {
 
   func onCancel(withArguments arguments: Any?) -> FlutterError? {
     delegate.serviceEventSink = nil
+    return nil
+  }
+}
+
+final class PermissionStreamHandler: NSObject, FlutterStreamHandler {
+  private let delegate: GeolocationDelegate
+  init(delegate: GeolocationDelegate) { self.delegate = delegate }
+
+  func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink)
+    -> FlutterError?
+  {
+    delegate.permissionEventSink = events
+    DispatchQueue.main.async {
+      guard let manager = self.delegate.manager else { return }
+      events(GeolocationDelegate.permissionIndex(from: manager.authorizationStatus))
+    }
+    return nil
+  }
+
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    delegate.permissionEventSink = nil
     return nil
   }
 }

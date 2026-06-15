@@ -1,5 +1,5 @@
 /// Possible location permission states.
-enum LocationPermission {
+enum DeviceLocationPermission {
   /// Access is denied. The app may try requesting again.
   denied,
 

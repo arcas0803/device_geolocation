@@ -1,5 +1,5 @@
 /// Granted accuracy level (iOS 14+ / Android 12+).
-enum LocationAccuracyStatus {
+enum DeviceLocationAccuracyStatus {
   /// Approximate location only.
   reduced,
 

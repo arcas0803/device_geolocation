@@ -8,57 +8,76 @@ class MockDeviceGeolocationPlatform
     with MockPlatformInterfaceMixin
     implements DeviceGeolocationPlatform {
   @override
-  Future<LocationPermission> checkPermission() async =>
-      LocationPermission.whileInUse;
+  Future<DeviceLocationPermission> checkPermission() async =>
+      DeviceLocationPermission.whileInUse;
 
   @override
-  Future<LocationPermission> requestPermission({
+  Future<DeviceLocationPermission> requestPermission({
     bool requestBackground = false,
-  }) async => LocationPermission.whileInUse;
+  }) async => DeviceLocationPermission.whileInUse;
 
   @override
   Future<bool> isLocationServiceEnabled() async => true;
 
-  @override
-  Future<Position?> getLastKnownPosition({
-    bool forceLocationManager = false,
-  }) async => _samplePosition();
+  DeviceLocationSettings? lastDeviceLocationSettings;
 
   @override
-  Future<Position> getCurrentPosition({
-    LocationSettings? locationSettings,
-  }) async => _samplePosition();
+  Future<DevicePosition> getCurrentPosition({
+    DeviceLocationSettings? deviceLocationSettings,
+  }) async {
+    lastDeviceLocationSettings = deviceLocationSettings;
+    return _samplePosition();
+  }
 
   @override
-  Stream<Position> getPositionStream({LocationSettings? locationSettings}) =>
-      Stream<Position>.value(_samplePosition());
+  Stream<DevicePosition> getPositionStream({
+    DeviceLocationSettings? deviceLocationSettings,
+  }) {
+    lastDeviceLocationSettings = deviceLocationSettings;
+    return Stream<DevicePosition>.value(_samplePosition());
+  }
 
   @override
-  Stream<ServiceStatus> getServiceStatusStream() =>
-      Stream<ServiceStatus>.value(ServiceStatus.enabled);
+  Stream<DeviceLocationPermission> getPermissionStream({
+    Duration pollingInterval = const Duration(seconds: 1),
+  }) => Stream<DeviceLocationPermission>.value(DeviceLocationPermission.whileInUse);
 
   @override
-  Future<LocationAccuracyStatus> getLocationAccuracy() async =>
-      LocationAccuracyStatus.precise;
+  Stream<DeviceLocationServiceStatus> getServiceStatusStream() =>
+      Stream<DeviceLocationServiceStatus>.value(
+        DeviceLocationServiceStatus.enabled,
+      );
 
   @override
-  Future<LocationAccuracyStatus> requestTemporaryFullAccuracy({
+  Future<DeviceLocationAccuracyStatus> getLocationAccuracy() async =>
+      DeviceLocationAccuracyStatus.precise;
+
+  @override
+  Future<DeviceLocationAccuracyStatus> requestTemporaryFullAccuracy({
     required String purposeKey,
-  }) async => LocationAccuracyStatus.precise;
+  }) async => DeviceLocationAccuracyStatus.precise;
 
   @override
-  Future<bool> openAppSettings() async => true;
+  Future<bool> openAppSettings({
+    DeviceGeolocationSettingsCallback? callback,
+  }) async => true;
 
   @override
-  Future<bool> openLocationSettings() async => true;
+  Future<bool> openLocationSettings({
+    DeviceGeolocationSettingsCallback? callback,
+  }) async => true;
+
+  @override
+  Stream<bool> get settingsOpenedStream => Stream<bool>.empty();
 
   @override
   double distanceBetween(
     double startLat,
     double startLon,
     double endLat,
-    double endLon,
-  ) => 0;
+    double endLon, {
+    GeospatialAlgorithm algorithm = GeospatialAlgorithm.vincenty,
+  }) => 0;
 
   @override
   double bearingBetween(
@@ -68,7 +87,7 @@ class MockDeviceGeolocationPlatform
     double endLon,
   ) => 0;
 
-  Position _samplePosition() => Position(
+  DevicePosition _samplePosition() => DevicePosition(
     latitude: 1.0,
     longitude: 2.0,
     timestamp: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
@@ -93,7 +112,7 @@ void main() {
     DeviceGeolocationPlatform.instance = MockDeviceGeolocationPlatform();
     expect(
       await DeviceGeolocation.checkPermission(),
-      LocationPermission.whileInUse,
+      DeviceLocationPermission.whileInUse,
     );
   });
 
@@ -102,5 +121,47 @@ void main() {
     final position = await DeviceGeolocation.getCurrentPosition();
     expect(position.latitude, 1.0);
     expect(position.longitude, 2.0);
+  });
+
+  group('configure', () {
+    tearDown(() => DeviceGeolocation.configure(const DeviceLocationSettings()));
+
+    test('uses configured settings when override is null', () async {
+      DeviceGeolocationPlatform.instance = MockDeviceGeolocationPlatform();
+      DeviceGeolocation.configure(
+        const DeviceLocationSettings(
+          accuracy: DeviceLocationAccuracy.high,
+          distanceFilter: 42,
+        ),
+      );
+      await DeviceGeolocation.getCurrentPosition();
+      final platform = DeviceGeolocationPlatform.instance
+          as MockDeviceGeolocationPlatform;
+      expect(
+        platform.lastDeviceLocationSettings?.accuracy,
+        DeviceLocationAccuracy.high,
+      );
+      expect(platform.lastDeviceLocationSettings?.distanceFilter, 42);
+    });
+
+    test('uses explicit settings over configured settings', () async {
+      DeviceGeolocationPlatform.instance = MockDeviceGeolocationPlatform();
+      DeviceGeolocation.configure(
+        const DeviceLocationSettings(
+          accuracy: DeviceLocationAccuracy.high,
+        ),
+      );
+      await DeviceGeolocation.getCurrentPosition(
+        deviceLocationSettings: const DeviceLocationSettings(
+          accuracy: DeviceLocationAccuracy.low,
+        ),
+      );
+      final platform = DeviceGeolocationPlatform.instance
+          as MockDeviceGeolocationPlatform;
+      expect(
+        platform.lastDeviceLocationSettings?.accuracy,
+        DeviceLocationAccuracy.low,
+      );
+    });
   });
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:device_geolocation/device_geolocation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,11 +17,23 @@ void main() {
       PermissionDefinitionsNotFoundException('missing entry').toString(),
       contains('missing entry'),
     );
-    expect(
-      PermissionDefinitionsNotFoundException().toString(),
-      contains('missing platform permission declarations'),
-    );
   });
+
+  test(
+    'PermissionDefinitionsNotFoundException prints platform instructions',
+    () {
+      final text = PermissionDefinitionsNotFoundException().toString();
+      if (Platform.isAndroid) {
+        expect(text, contains('AndroidManifest.xml'));
+        expect(text, contains('ACCESS_FINE_LOCATION'));
+      } else if (Platform.isIOS || Platform.isMacOS) {
+        expect(text, contains('Info.plist'));
+        expect(text, contains('NSLocationWhenInUseUsageDescription'));
+      } else {
+        expect(text, contains('missing platform permission declarations'));
+      }
+    },
+  );
 
   test('PermissionRequestInProgressException prints message', () {
     expect(

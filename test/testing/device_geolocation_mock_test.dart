@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:device_geolocation/device_geolocation.dart';
 import 'package:device_geolocation/testing.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -18,10 +21,10 @@ void main() {
   });
 
   test('checkPermission returns the configured value', () async {
-    mock.permission = LocationPermission.always;
+    mock.permission = DeviceLocationPermission.always;
     expect(
       await DeviceGeolocation.checkPermission(),
-      LocationPermission.always,
+      DeviceLocationPermission.always,
     );
   });
 
@@ -38,32 +41,22 @@ void main() {
   test('getCurrentPosition returns configured position', () async {
     mock.setPosition(mock.makePosition(latitude: 10, longitude: 20));
     final p = await DeviceGeolocation.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+      deviceLocationSettings: const DeviceLocationSettings(
+        accuracy: DeviceLocationAccuracy.low,
+      ),
     );
     expect(p.latitude, 10);
     expect(p.longitude, 20);
-    expect(mock.lastLocationSettings?.accuracy, LocationAccuracy.low);
+    expect(mock.lastDeviceLocationSettings?.accuracy, DeviceLocationAccuracy.low);
   });
 
   test('getCurrentPosition throws StateError when position is unset', () {
     expect(() => DeviceGeolocation.getCurrentPosition(), throwsStateError);
   });
 
-  test('getLastKnownPosition returns configured value', () async {
-    final p = mock.makePosition(latitude: 1, longitude: 2);
-    mock.lastKnownPosition = p;
-    expect(
-      await DeviceGeolocation.getLastKnownPosition(
-        forceAndroidLocationManager: true,
-      ),
-      same(p),
-    );
-    expect(mock.lastForcedLocationManager, isTrue);
-  });
-
   test('getPositionStream emits values via emitPosition', () async {
     final stream = DeviceGeolocation.getPositionStream();
-    final received = <Position>[];
+    final received = <DevicePosition>[];
     final sub = stream.listen(received.add);
     final p = mock.makePosition(latitude: 5, longitude: 6);
     mock.emitPosition(p);
@@ -72,13 +65,23 @@ void main() {
     await sub.cancel();
   });
 
+  test('getPermissionStream emits values via emitPermission', () async {
+    final stream = DeviceGeolocation.getPermissionStream();
+    final received = <DeviceLocationPermission>[];
+    final sub = stream.listen(received.add);
+    mock.emitPermission(DeviceLocationPermission.always);
+    await Future<void>.delayed(Duration.zero);
+    expect(received, [DeviceLocationPermission.always]);
+    await sub.cancel();
+  });
+
   test('getServiceStatusStream emits values via emitServiceStatus', () async {
     final stream = DeviceGeolocation.getServiceStatusStream();
-    final received = <ServiceStatus>[];
+    final received = <DeviceLocationServiceStatus>[];
     final sub = stream.listen(received.add);
-    mock.emitServiceStatus(ServiceStatus.disabled);
+    mock.emitServiceStatus(DeviceLocationServiceStatus.disabled);
     await Future<void>.delayed(Duration.zero);
-    expect(received, [ServiceStatus.disabled]);
+    expect(received, [DeviceLocationServiceStatus.disabled]);
     await sub.cancel();
   });
 
@@ -90,16 +93,16 @@ void main() {
     );
     expect(
       await DeviceGeolocation.checkPermission(),
-      LocationPermission.whileInUse,
+      DeviceLocationPermission.whileInUse,
     );
   });
 
   test('requestTemporaryFullAccuracy records purposeKey', () async {
-    mock.temporaryAccuracyResult = LocationAccuracyStatus.reduced;
+    mock.temporaryAccuracyResult = DeviceLocationAccuracyStatus.reduced;
     final r = await DeviceGeolocation.requestTemporaryFullAccuracy(
       purposeKey: 'PreciseLocation',
     );
-    expect(r, LocationAccuracyStatus.reduced);
+    expect(r, DeviceLocationAccuracyStatus.reduced);
     expect(mock.lastPurposeKey, 'PreciseLocation');
   });
 
@@ -110,10 +113,10 @@ void main() {
   });
 
   test('reset clears configured state', () async {
-    mock.permission = LocationPermission.deniedForever;
+    mock.permission = DeviceLocationPermission.deniedForever;
     mock.serviceEnabled = false;
     await mock.reset();
-    expect(mock.permission, LocationPermission.whileInUse);
+    expect(mock.permission, DeviceLocationPermission.whileInUse);
     expect(mock.serviceEnabled, isTrue);
   });
 
@@ -124,7 +127,7 @@ void main() {
       enableWakeLock: true,
     );
     final stream = DeviceGeolocation.getPositionStream(
-      locationSettings: const AndroidSettings(
+      deviceLocationSettings: const AndroidSettings(
         foregroundNotificationConfig: cfg,
       ),
     );
@@ -138,7 +141,7 @@ void main() {
     'lastForegroundNotificationConfig is null without AndroidSettings',
     () async {
       final stream = DeviceGeolocation.getPositionStream(
-        locationSettings: const LocationSettings(),
+        deviceLocationSettings: const DeviceLocationSettings(),
       );
       final sub = stream.listen((_) {});
       await Future<void>.delayed(Duration.zero);
@@ -146,4 +149,29 @@ void main() {
       await sub.cancel();
     },
   );
+
+  test('settingsOpenedStream emits true/false via lifecycle', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final received = <bool>[];
+    final sub = DeviceGeolocation.settingsOpenedStream.listen(received.add);
+
+    unawaited(
+      DeviceGeolocation.openAppSettings(
+        callback: (status, permission) {
+          // callback expected
+        },
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(received, [true]);
+
+    // Simulate returning to the app.
+    TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+      AppLifecycleState.resumed,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(received, [true, false]);
+
+    await sub.cancel();
+  });
 }

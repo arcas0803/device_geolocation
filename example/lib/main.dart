@@ -4,6 +4,12 @@ import 'package:device_geolocation/device_geolocation.dart';
 import 'package:flutter/material.dart';
 
 void main() {
+  DeviceGeolocation.configure(
+    const DeviceLocationSettings(
+      accuracy: DeviceLocationAccuracy.high,
+      distanceFilter: 5,
+    ),
+  );
   runApp(const MyApp());
 }
 
@@ -15,21 +21,36 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  LocationPermission? _permission;
+  DeviceLocationPermission? _permission;
   bool? _serviceEnabled;
-  Position? _position;
-  StreamSubscription<Position>? _positionSubscription;
+  DevicePosition? _position;
+  StreamSubscription<DevicePosition>? _positionSubscription;
+  StreamSubscription<DeviceLocationPermission>? _permissionSubscription;
+  StreamSubscription<bool>? _settingsOpenedSubscription;
+  bool _settingsOpened = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _refreshStatus();
+    _permissionSubscription = DeviceGeolocation.getPermissionStream().listen(
+      (permission) => setState(() {
+        _permission = permission;
+        _error = null;
+      }),
+      onError: (Object e) => setState(() => _error = e.toString()),
+    );
+    _settingsOpenedSubscription = DeviceGeolocation.settingsOpenedStream.listen(
+      (opened) => setState(() => _settingsOpened = opened),
+    );
   }
 
   @override
   void dispose() {
     _positionSubscription?.cancel();
+    _permissionSubscription?.cancel();
+    _settingsOpenedSubscription?.cancel();
     super.dispose();
   }
 
@@ -61,6 +82,7 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _getCurrentPosition() async {
     try {
+      // Uses the settings configured in main() because no override is passed.
       final pos = await DeviceGeolocation.getCurrentPosition();
       setState(() {
         _position = pos;
@@ -77,20 +99,47 @@ class _MyAppState extends State<MyApp> {
       setState(() => _positionSubscription = null);
       return;
     }
-    final sub =
-        DeviceGeolocation.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 0,
-          ),
-        ).listen(
-          (pos) => setState(() {
-            _position = pos;
-            _error = null;
-          }),
-          onError: (Object e) => setState(() => _error = e.toString()),
-        );
+    final sub = DeviceGeolocation.getPositionStream(
+      deviceLocationSettings: const DeviceLocationSettings(
+        accuracy: DeviceLocationAccuracy.high,
+        distanceFilter: 0,
+      ),
+    ).listen(
+      (pos) => setState(() {
+        _position = pos;
+        _error = null;
+      }),
+      onError: (Object e) => setState(() => _error = e.toString()),
+    );
     setState(() => _positionSubscription = sub);
+  }
+
+  Future<void> _openAppSettings() async {
+    try {
+      await DeviceGeolocation.openAppSettings(
+        callback: (serviceStatus, permission) => setState(() {
+          _serviceEnabled =
+              serviceStatus == DeviceLocationServiceStatus.enabled;
+          _permission = permission;
+        }),
+      );
+    } catch (e) {
+      setState(() => _error = e.toString());
+    }
+  }
+
+  Future<void> _openLocationSettings() async {
+    try {
+      await DeviceGeolocation.openLocationSettings(
+        callback: (serviceStatus, permission) => setState(() {
+          _serviceEnabled =
+              serviceStatus == DeviceLocationServiceStatus.enabled;
+          _permission = permission;
+        }),
+      );
+    } catch (e) {
+      setState(() => _error = e.toString());
+    }
   }
 
   @override
@@ -104,6 +153,7 @@ class _MyAppState extends State<MyApp> {
             children: [
               Text('Permission: ${_permission ?? "unknown"}'),
               Text('Service enabled: ${_serviceEnabled ?? "unknown"}'),
+              Text('Settings panel opened: $_settingsOpened'),
               const Divider(),
               if (_position != null) ...[
                 Text('Latitude: ${_position!.latitude}'),
@@ -145,11 +195,11 @@ class _MyAppState extends State<MyApp> {
                     ),
                   ),
                   OutlinedButton(
-                    onPressed: () => DeviceGeolocation.openAppSettings(),
+                    onPressed: _openAppSettings,
                     child: const Text('App settings'),
                   ),
                   OutlinedButton(
-                    onPressed: () => DeviceGeolocation.openLocationSettings(),
+                    onPressed: _openLocationSettings,
                     child: const Text('Location settings'),
                   ),
                 ],

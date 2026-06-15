@@ -4,6 +4,56 @@ All notable changes to this project are documented in this file. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026
+
+### Added
+- `GeospatialAlgorithm` enum to choose between `haversine` and `vincenty`
+  distance formulas.
+- `DeviceGeolocation.distanceBetweenIsolate()` and
+  `DeviceGeolocation.bearingBetweenIsolate()` to run calculations in a separate
+  isolate on native platforms. On the web they fall back to the synchronous
+  calculation.
+
+### Changed
+- `DeviceGeolocation.distanceBetween()` now uses the more accurate Vincenty
+  formula by default and accepts an optional `algorithm` parameter.
+- Distance calculations now normalize longitude deltas to the shortest arc,
+  improving accuracy across the antimeridian.
+
+## [2.0.0] - 2026
+
+### Added
+- `DeviceGeolocation.configure(DeviceLocationSettings)` to set default location
+  settings for all subsequent `getCurrentPosition()` and `getPositionStream()`
+  calls. Explicit `deviceLocationSettings` still override the configured values.
+- `DeviceGeolocation.getPermissionStream()` emits permission status changes.
+  The web implementation uses the Permissions API natively; iOS and macOS use
+  a native `permissionUpdates` event channel; Android and Linux fall back to
+  polling.
+- `DeviceGeolocation.openAppSettings()` and `openLocationSettings()` now accept
+  an optional `DeviceGeolocationSettingsCallback` that is invoked when the user
+  returns to the app with the current service status and permission.
+- `DeviceGeolocation.settingsOpenedStream` emits `true` when a settings panel
+  is opened and `false` when the app returns to the foreground.
+- Native checks on Android, iOS and macOS that detect missing location
+  permission declarations (`AndroidManifest.xml` / `Info.plist`) and throw
+  `PermissionDefinitionsNotFoundException` with detailed English instructions.
+
+### Changed
+- **Breaking:** renamed public types to use the `Device` prefix:
+  - `LocationPermission` → `DeviceLocationPermission`
+  - `LocationAccuracy` → `DeviceLocationAccuracy`
+  - `LocationAccuracyStatus` → `DeviceLocationAccuracyStatus`
+  - `ServiceStatus` → `DeviceLocationServiceStatus`
+  - `LocationSettings` → `DeviceLocationSettings`
+  - `Position` → `DevicePosition`
+- `getCurrentPosition()` and `getPositionStream()` now take
+  `DeviceLocationSettings? deviceLocationSettings` instead of `locationSettings`.
+
+### Removed
+- **Breaking:** removed `DeviceGeolocation.getLastKnownPosition()` and the
+  `forceAndroidLocationManager` parameter from the public API.
+
 ## [1.1.0] - 2026
 
 ### Added

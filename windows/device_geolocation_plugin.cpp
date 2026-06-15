@@ -215,7 +215,7 @@ void DeviceGeolocationPlugin::HandleMethodCall(
     return;
   }
 
-  if (method == "getLastKnownPosition" || method == "getCurrentPosition") {
+  if (method == "getCurrentPosition") {
     try {
       EnsureGeolocator();
       auto shared_result = std::shared_ptr<flutter::MethodResult<EncodableValue>>(
