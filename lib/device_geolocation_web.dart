@@ -187,16 +187,13 @@ class DeviceGeolocationWeb extends DeviceGeolocationPlatform {
   }) async => DeviceLocationAccuracyStatus.unknown;
 
   @override
-  Future<bool> openAppSettings({
-    DeviceGeolocationSettingsCallback? callback,
-  }) =>
+  Future<bool> openAppSettings({DeviceGeolocationSettingsCallback? callback}) =>
       throw _unsupported('openAppSettings');
 
   @override
   Future<bool> openLocationSettings({
     DeviceGeolocationSettingsCallback? callback,
-  }) =>
-      throw _unsupported('openLocationSettings');
+  }) => throw _unsupported('openLocationSettings');
 
   @override
   Stream<bool> get settingsOpenedStream =>

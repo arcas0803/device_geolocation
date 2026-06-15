@@ -118,7 +118,7 @@ final class GeolocationDelegate: NSObject, CLLocationManagerDelegate, @unchecked
     [
       "latitude": loc.coordinate.latitude,
       "longitude": loc.coordinate.longitude,
-      "timestamp": Int(loc.timestamp.timeIntervalSinceEpoch * 1000),
+      "timestamp": Int(loc.timestamp.timeIntervalSince1970 * 1000),
       "accuracy": loc.horizontalAccuracy,
       "altitude": loc.altitude,
       "altitude_accuracy": loc.verticalAccuracy,

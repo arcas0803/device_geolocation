@@ -99,18 +99,19 @@ class _MyAppState extends State<MyApp> {
       setState(() => _positionSubscription = null);
       return;
     }
-    final sub = DeviceGeolocation.getPositionStream(
-      deviceLocationSettings: const DeviceLocationSettings(
-        accuracy: DeviceLocationAccuracy.high,
-        distanceFilter: 0,
-      ),
-    ).listen(
-      (pos) => setState(() {
-        _position = pos;
-        _error = null;
-      }),
-      onError: (Object e) => setState(() => _error = e.toString()),
-    );
+    final sub =
+        DeviceGeolocation.getPositionStream(
+          deviceLocationSettings: const DeviceLocationSettings(
+            accuracy: DeviceLocationAccuracy.high,
+            distanceFilter: 0,
+          ),
+        ).listen(
+          (pos) => setState(() {
+            _position = pos;
+            _error = null;
+          }),
+          onError: (Object e) => setState(() => _error = e.toString()),
+        );
     setState(() => _positionSubscription = sub);
   }
 

@@ -328,9 +328,7 @@ class DeviceGeolocationLinux extends DeviceGeolocationPlatform {
   }) async => DeviceLocationAccuracyStatus.precise;
 
   @override
-  Future<bool> openAppSettings({
-    DeviceGeolocationSettingsCallback? callback,
-  }) =>
+  Future<bool> openAppSettings({DeviceGeolocationSettingsCallback? callback}) =>
       openLocationSettings(callback: callback);
 
   @override

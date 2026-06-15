@@ -15,8 +15,7 @@ class SettingsPanelLifecycle with WidgetsBindingObserver {
   /// Shared lifecycle observer used by platform implementations.
   static SettingsPanelLifecycle get instance => _instance;
 
-  final StreamController<bool> _controller =
-      StreamController<bool>.broadcast();
+  final StreamController<bool> _controller = StreamController<bool>.broadcast();
 
   DeviceGeolocationSettingsCallback? _callback;
   var _settingsOpened = false;

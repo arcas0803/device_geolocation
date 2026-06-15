@@ -21,15 +21,15 @@ class Haversine {
   /// Returns the distance between [p1] and [p2] in meters.
   double distance(final GeoPoint p1, final GeoPoint p2) {
     final dLat = p2.latitudeInRad - p1.latitudeInRad;
-    final dLng = normalizeLongitudeDelta(
-      p2.longitudeInRad - p1.longitudeInRad,
-    );
+    final dLng = normalizeLongitudeDelta(p2.longitudeInRad - p1.longitudeInRad);
 
     final sinDLat = math.sin(dLat / 2);
     final sinDLng = math.sin(dLng / 2);
 
-    final a = sinDLat * sinDLat +
-        sinDLng * sinDLng *
+    final a =
+        sinDLat * sinDLat +
+        sinDLng *
+            sinDLng *
             math.cos(p1.latitudeInRad) *
             math.cos(p2.latitudeInRad);
     final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));

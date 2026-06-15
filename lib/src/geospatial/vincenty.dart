@@ -30,9 +30,7 @@ class Vincenty {
     const b = polarRadius;
     const f = flattening;
 
-    final l = normalizeLongitudeDelta(
-      p2.longitudeInRad - p1.longitudeInRad,
-    );
+    final l = normalizeLongitudeDelta(p2.longitudeInRad - p1.longitudeInRad);
 
     final u1 = math.atan((1 - f) * math.tan(p1.latitudeInRad));
     final u2 = math.atan((1 - f) * math.tan(p2.latitudeInRad));
@@ -75,7 +73,8 @@ class Vincenty {
 
       final c = f / 16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha));
       lambdaP = lambda;
-      lambda = l +
+      lambda =
+          l +
           (1 - c) *
               f *
               sinAlpha *
@@ -83,9 +82,7 @@ class Vincenty {
                   c *
                       sinSigma *
                       (cos2SigmaM +
-                          c *
-                              cosSigma *
-                              (-1 + 2 * cos2SigmaM * cos2SigmaM)));
+                          c * cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM)));
     } while ((lambda - lambdaP).abs() > accuracy && --iterations > 0);
 
     if (iterations == 0) {
@@ -96,7 +93,8 @@ class Vincenty {
     final bigA =
         1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
     final bigB = uSq / 1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)));
-    final deltaSigma = bigB *
+    final deltaSigma =
+        bigB *
         sinSigma *
         (cos2SigmaM +
             bigB /

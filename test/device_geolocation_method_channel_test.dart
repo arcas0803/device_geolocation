@@ -8,7 +8,9 @@ void main() {
 
   final platform = MethodChannelDeviceGeolocation();
   const channel = MethodChannel('device_geolocation');
-  const permissionChannel = EventChannel('device_geolocation/permissionUpdates');
+  const permissionChannel = EventChannel(
+    'device_geolocation/permissionUpdates',
+  );
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
@@ -126,7 +128,9 @@ void main() {
       install((_) async => DeviceLocationPermission.whileInUse.index);
       final values = <DeviceLocationPermission>[];
       final sub = platform
-          .getPermissionStream(pollingInterval: const Duration(milliseconds: 50))
+          .getPermissionStream(
+            pollingInterval: const Duration(milliseconds: 50),
+          )
           .listen(values.add);
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(values, isNotEmpty);
@@ -137,28 +141,25 @@ void main() {
     test('emits permission updates from native event channel', () async {
       install((_) async => DeviceLocationPermission.denied.index);
 
-      messenger.setMockMessageHandler(
-        permissionChannel.name,
-        (message) async {
-          final codec = permissionChannel.codec;
-          final call = codec.decodeMethodCall(message);
-          if (call.method == 'listen') {
-            final envelope = codec.encodeSuccessEnvelope(
-              DeviceLocationPermission.always.index,
+      messenger.setMockMessageHandler(permissionChannel.name, (message) async {
+        final codec = permissionChannel.codec;
+        final call = codec.decodeMethodCall(message);
+        if (call.method == 'listen') {
+          final envelope = codec.encodeSuccessEnvelope(
+            DeviceLocationPermission.always.index,
+          );
+          // ignore: discarded_futures
+          Future<void>.delayed(Duration.zero, () {
+            // ignore: deprecated_member_use
+            permissionChannel.binaryMessenger.handlePlatformMessage(
+              permissionChannel.name,
+              envelope,
+              (_) {},
             );
-            // ignore: discarded_futures
-            Future<void>.delayed(Duration.zero, () {
-              // ignore: deprecated_member_use
-              permissionChannel.binaryMessenger.handlePlatformMessage(
-                permissionChannel.name,
-                envelope,
-                (_) {},
-              );
-            });
-          }
-          return codec.encodeSuccessEnvelope(null);
-        },
-      );
+          });
+        }
+        return codec.encodeSuccessEnvelope(null);
+      });
 
       final values = <DeviceLocationPermission>[];
       final sub = platform

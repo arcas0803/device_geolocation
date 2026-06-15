@@ -10,10 +10,11 @@ import 'src/models/models.dart';
 
 /// Signature for callbacks invoked when the user returns from the system
 /// settings screen.
-typedef DeviceGeolocationSettingsCallback = void Function(
-  DeviceLocationServiceStatus serviceStatus,
-  DeviceLocationPermission permission,
-);
+typedef DeviceGeolocationSettingsCallback =
+    void Function(
+      DeviceLocationServiceStatus serviceStatus,
+      DeviceLocationPermission permission,
+    );
 
 /// Interface that all platform implementations of `device_geolocation` must
 /// implement.
@@ -66,9 +67,7 @@ abstract class DeviceGeolocationPlatform extends PlatformInterface {
   Stream<DeviceLocationPermission> getPermissionStream({
     Duration pollingInterval = const Duration(seconds: 1),
   }) {
-    throw UnimplementedError(
-      'getPermissionStream() has not been implemented.',
-    );
+    throw UnimplementedError('getPermissionStream() has not been implemented.');
   }
 
   Stream<DeviceLocationServiceStatus> getServiceStatusStream() {
@@ -89,9 +88,7 @@ abstract class DeviceGeolocationPlatform extends PlatformInterface {
     );
   }
 
-  Future<bool> openAppSettings({
-    DeviceGeolocationSettingsCallback? callback,
-  }) {
+  Future<bool> openAppSettings({DeviceGeolocationSettingsCallback? callback}) {
     throw UnimplementedError('openAppSettings() has not been implemented.');
   }
 
@@ -106,9 +103,7 @@ abstract class DeviceGeolocationPlatform extends PlatformInterface {
   /// Stream that emits `true` when a system settings panel is opened by this
   /// plugin and `false` when the app returns to the foreground.
   Stream<bool> get settingsOpenedStream {
-    throw UnimplementedError(
-      'settingsOpenedStream has not been implemented.',
-    );
+    throw UnimplementedError('settingsOpenedStream has not been implemented.');
   }
 
   /// Great-circle distance between two coordinates in meters.

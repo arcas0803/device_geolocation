@@ -42,7 +42,8 @@ double calculateBearing(
   final diffLongitude = p2.longitudeInRad - p1.longitudeInRad;
 
   final y = math.sin(diffLongitude);
-  final x = math.cos(p1.latitudeInRad) * math.tan(p2.latitudeInRad) -
+  final x =
+      math.cos(p1.latitudeInRad) * math.tan(p2.latitudeInRad) -
       math.sin(p1.latitudeInRad) * math.cos(diffLongitude);
 
   return radianToDeg(math.atan2(y, x));

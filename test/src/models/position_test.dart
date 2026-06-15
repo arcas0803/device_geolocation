@@ -8,20 +8,21 @@ void main() {
       isUtc: true,
     );
 
-    DevicePosition sample({bool isMocked = false, int? floor}) => DevicePosition(
-      latitude: 41.3851,
-      longitude: 2.1734,
-      timestamp: timestamp,
-      accuracy: 5.0,
-      altitude: 12.0,
-      altitudeAccuracy: 1.5,
-      heading: 90.0,
-      headingAccuracy: 0.5,
-      speed: 1.2,
-      speedAccuracy: 0.1,
-      floor: floor,
-      isMocked: isMocked,
-    );
+    DevicePosition sample({bool isMocked = false, int? floor}) =>
+        DevicePosition(
+          latitude: 41.3851,
+          longitude: 2.1734,
+          timestamp: timestamp,
+          accuracy: 5.0,
+          altitude: 12.0,
+          altitudeAccuracy: 1.5,
+          heading: 90.0,
+          headingAccuracy: 0.5,
+          speed: 1.2,
+          speedAccuracy: 0.1,
+          floor: floor,
+          isMocked: isMocked,
+        );
 
     test('toJson <-> fromMap is a round-trip', () {
       final original = sample(isMocked: true, floor: 3);

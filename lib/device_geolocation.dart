@@ -42,8 +42,7 @@ class DeviceGeolocation {
 
   static DeviceLocationSettings _resolveSettings(
     DeviceLocationSettings? override,
-  ) =>
-      override ?? _configuredSettings ?? const DeviceLocationSettings();
+  ) => override ?? _configuredSettings ?? const DeviceLocationSettings();
 
   /// Returns the current permission status for accessing the device's
   /// location.
@@ -137,9 +136,8 @@ class DeviceGeolocation {
   static Future<bool> openLocationSettings({
     DeviceGeolocationSettingsCallback? callback,
   }) async {
-    final opened = await DeviceGeolocationPlatform.instance.openLocationSettings(
-      callback: callback,
-    );
+    final opened = await DeviceGeolocationPlatform.instance
+        .openLocationSettings(callback: callback);
     if (opened) {
       SettingsPanelLifecycle.instance.notifySettingsOpened(callback: callback);
     }

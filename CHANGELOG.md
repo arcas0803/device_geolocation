@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026
+
+### Fixed
+- iOS build: `Date.timeIntervalSinceEpoch` replaced with `timeIntervalSince1970`
+  in the Swift plugin implementation.
+- Windows build: updated bundled GoogleTest from `release-1.11.0` to
+  `release-1.14.0` to restore compatibility with CMake 4.x.
+- Applied `dart format` across the repository so the formatting CI check passes.
+
 ## [2.1.0] - 2026
 
 ### Added

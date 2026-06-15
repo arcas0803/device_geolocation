@@ -85,8 +85,8 @@ class MethodChannelDeviceGeolocation extends DeviceGeolocationPlatform {
   Stream<DevicePosition> getPositionStream({
     DeviceLocationSettings? deviceLocationSettings,
   }) {
-    final args =
-        (deviceLocationSettings ?? const DeviceLocationSettings()).toJson();
+    final args = (deviceLocationSettings ?? const DeviceLocationSettings())
+        .toJson();
     return locationUpdatesChannel
         .receiveBroadcastStream(args)
         .map<DevicePosition>((dynamic event) => DevicePosition.fromMap(event))
@@ -119,19 +119,17 @@ class MethodChannelDeviceGeolocation extends DeviceGeolocationPlatform {
     controller.onListen = () {
       timer = Timer.periodic(pollingInterval, (_) => emitCurrent());
       try {
-        nativeSub = permissionUpdatesChannel
-            .receiveBroadcastStream()
-            .listen(
-              (dynamic event) {
-                final index = event as int;
-                if (!controller.isClosed) {
-                  controller.add(DeviceLocationPermission.values[index]);
-                }
-              },
-              onError: (_) {
-                // Polling will keep the stream alive.
-              },
-            );
+        nativeSub = permissionUpdatesChannel.receiveBroadcastStream().listen(
+          (dynamic event) {
+            final index = event as int;
+            if (!controller.isClosed) {
+              controller.add(DeviceLocationPermission.values[index]);
+            }
+          },
+          onError: (_) {
+            // Polling will keep the stream alive.
+          },
+        );
       } on Exception {
         // Event channel not implemented on the native side; polling covers it.
       }
@@ -150,12 +148,12 @@ class MethodChannelDeviceGeolocation extends DeviceGeolocationPlatform {
 
   @override
   Stream<DeviceLocationServiceStatus> getServiceStatusStream() {
-    return serviceUpdatesChannel.receiveBroadcastStream().map<
-      DeviceLocationServiceStatus
-    >((dynamic event) {
-      final index = event as int;
-      return DeviceLocationServiceStatus.values[index];
-    });
+    return serviceUpdatesChannel
+        .receiveBroadcastStream()
+        .map<DeviceLocationServiceStatus>((dynamic event) {
+          final index = event as int;
+          return DeviceLocationServiceStatus.values[index];
+        });
   }
 
   @override

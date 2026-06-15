@@ -47,7 +47,10 @@ void main() {
     );
     expect(p.latitude, 10);
     expect(p.longitude, 20);
-    expect(mock.lastDeviceLocationSettings?.accuracy, DeviceLocationAccuracy.low);
+    expect(
+      mock.lastDeviceLocationSettings?.accuracy,
+      DeviceLocationAccuracy.low,
+    );
   });
 
   test('getCurrentPosition throws StateError when position is unset', () {

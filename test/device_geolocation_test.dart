@@ -40,7 +40,9 @@ class MockDeviceGeolocationPlatform
   @override
   Stream<DeviceLocationPermission> getPermissionStream({
     Duration pollingInterval = const Duration(seconds: 1),
-  }) => Stream<DeviceLocationPermission>.value(DeviceLocationPermission.whileInUse);
+  }) => Stream<DeviceLocationPermission>.value(
+    DeviceLocationPermission.whileInUse,
+  );
 
   @override
   Stream<DeviceLocationServiceStatus> getServiceStatusStream() =>
@@ -135,8 +137,8 @@ void main() {
         ),
       );
       await DeviceGeolocation.getCurrentPosition();
-      final platform = DeviceGeolocationPlatform.instance
-          as MockDeviceGeolocationPlatform;
+      final platform =
+          DeviceGeolocationPlatform.instance as MockDeviceGeolocationPlatform;
       expect(
         platform.lastDeviceLocationSettings?.accuracy,
         DeviceLocationAccuracy.high,
@@ -147,17 +149,15 @@ void main() {
     test('uses explicit settings over configured settings', () async {
       DeviceGeolocationPlatform.instance = MockDeviceGeolocationPlatform();
       DeviceGeolocation.configure(
-        const DeviceLocationSettings(
-          accuracy: DeviceLocationAccuracy.high,
-        ),
+        const DeviceLocationSettings(accuracy: DeviceLocationAccuracy.high),
       );
       await DeviceGeolocation.getCurrentPosition(
         deviceLocationSettings: const DeviceLocationSettings(
           accuracy: DeviceLocationAccuracy.low,
         ),
       );
-      final platform = DeviceGeolocationPlatform.instance
-          as MockDeviceGeolocationPlatform;
+      final platform =
+          DeviceGeolocationPlatform.instance as MockDeviceGeolocationPlatform;
       expect(
         platform.lastDeviceLocationSettings?.accuracy,
         DeviceLocationAccuracy.low,
