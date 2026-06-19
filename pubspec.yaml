@@ -23,7 +23,7 @@ dependencies:
   meta: ^1.18.0
   web: ^1.1.1
   plugin_platform_interface: ^2.1.8
-  dbus: 0.7.12
+  dbus: 0.7.14
 
 dev_dependencies:
   flutter_test:
